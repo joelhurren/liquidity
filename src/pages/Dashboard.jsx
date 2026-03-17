@@ -77,37 +77,37 @@ export default function Dashboard() {
       {/* Header */}
       <header className="bg-gradient-to-br from-burgundy to-burgundy/80 text-white">
         <div className="max-w-7xl mx-auto px-4 py-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold flex items-center gap-3">
-                <Wine size={32} /> Liquidity
+              <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+                <Wine size={28} className="sm:w-8 sm:h-8" /> Liquidity
               </h1>
-              <p className="text-white/70 mt-1">Your personal wine collection</p>
+              <p className="text-white/70 mt-1 text-sm sm:text-base">Your personal wine collection</p>
             </div>
-            <div className="flex items-center gap-3">
-              {user && !isOfflineMode && (
-                <button
-                  onClick={signOut}
-                  className="bg-white/10 backdrop-blur text-white/80 px-3 py-2 rounded-xl hover:bg-white/20 transition-colors flex items-center gap-2 text-sm border border-white/10"
-                  title="Sign out"
-                >
-                  <LogOut size={16} />
-                  <span className="hidden sm:inline">{user.user_metadata?.full_name?.split(' ')[0] || 'Sign Out'}</span>
-                </button>
-              )}
-              <Link
-                to="/suggest"
-                className="bg-white/15 backdrop-blur text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-white/25 transition-colors flex items-center gap-2 border border-white/20"
+            {user && !isOfflineMode && (
+              <button
+                onClick={signOut}
+                className="bg-white/10 backdrop-blur text-white/80 px-3 py-2 rounded-xl hover:bg-white/20 transition-colors flex items-center gap-2 text-sm border border-white/10"
+                title="Sign out"
               >
-                <Sparkles size={18} /> Tonight's Pick
-              </Link>
-              <Link
-                to="/add"
-                className="bg-white text-burgundy px-5 py-2.5 rounded-xl font-semibold hover:bg-white/90 transition-colors flex items-center gap-2 shadow-lg"
-              >
-                <Plus size={20} /> Add Wine
-              </Link>
-            </div>
+                <LogOut size={16} />
+                <span className="hidden sm:inline">{user.user_metadata?.full_name?.split(' ')[0] || 'Sign Out'}</span>
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 sm:gap-3 mb-6">
+            <Link
+              to="/add"
+              className="flex-1 sm:flex-none bg-white text-burgundy px-4 sm:px-5 py-2.5 rounded-xl font-semibold hover:bg-white/90 transition-colors flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base"
+            >
+              <Plus size={18} /> Add Wine
+            </Link>
+            <Link
+              to="/suggest"
+              className="flex-1 sm:flex-none bg-white/15 backdrop-blur text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-white/25 transition-colors flex items-center justify-center gap-2 border border-white/20 text-sm sm:text-base"
+            >
+              <Sparkles size={18} /> Tonight's Pick
+            </Link>
           </div>
 
           {/* Stats bar */}
