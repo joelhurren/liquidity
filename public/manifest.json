@@ -3,7 +3,7 @@
   "short_name": "Liquidity",
   "description": "Your personal wine collection",
   "start_url": "/",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#1c1917",
   "theme_color": "#1c1917",
   "icons": [
