@@ -145,6 +145,19 @@ export default function AddWine() {
         grapeVarieties: form.grapeVarieties,
         classification: form.classification,
       });
+      // Fill empty fields from AI response
+      if (data.producer && !form.producer) set('producer', data.producer);
+      if (data.region && !form.region) set('region', data.region);
+      if (data.country && !form.country) set('country', data.country);
+      if (data.appellation && !form.appellation) set('appellation', data.appellation);
+      if (data.type) set('type', data.type);
+      if (data.grapeVarieties?.length && form.grapeVarieties.length === 0) {
+        set('grapeVarieties', data.grapeVarieties);
+      }
+      if (data.classification && !form.classification) set('classification', data.classification);
+      if (data.alcoholPercent && !form.alcoholPercent) {
+        set('alcoholPercent', data.alcoholPercent.toString());
+      }
       if (data.foodPairings?.length) {
         const newPairings = data.foodPairings.filter((p) => !form.foodPairings.includes(p));
         set('foodPairings', [...form.foodPairings, ...newPairings.slice(0, 8)]);
@@ -152,14 +165,16 @@ export default function AddWine() {
       if (data.tastingNotes && !form.tastingNotes) {
         set('tastingNotes', data.tastingNotes);
       }
-      if (data.drinkingWindow && !form.drinkFrom) {
-        set('drinkFrom', data.drinkingWindow.from.toString());
-        setTimeout(() => set('drinkTo', data.drinkingWindow.to.toString()), 0);
+      if (data.drinkFrom && !form.drinkFrom) {
+        set('drinkFrom', data.drinkFrom.toString());
+        setTimeout(() => set('drinkTo', (data.drinkTo || '').toString()), 0);
       }
       setLookupDone(true);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Wine lookup error:', err);
+    }
     setLookupLoading(false);
-  }, [form.name, form.producer, form.vintage, form.region, form.type, form.grapeVarieties, form.foodPairings, form.tastingNotes, form.classification, form.drinkFrom]);
+  }, [form]);
 
   return (
     <div className="min-h-screen bg-stone-50">
