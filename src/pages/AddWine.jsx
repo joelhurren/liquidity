@@ -1,25 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe, ScanLine, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
 import { WINE_TYPES, COMMON_GRAPES, FOOD_PAIRING_SUGGESTIONS, REGIONS, COUNTRIES, estimateDrinkingWindow } from '../data/wineData';
-import { getExpertPairings, lookupWineData } from '../data/wineLookup';
-import { scanWineLabel } from '../data/labelScanner';
+import { lookupWineData } from '../data/wineLookup';
 import { searchKnownWines } from '../data/knownWines';
 import StarRating from '../components/StarRating';
-import CameraCapture from '../components/CameraCapture';
 
 export default function AddWine() {
   const navigate = useNavigate();
   const { addWine } = useWines();
-  const [showCamera, setShowCamera] = useState(false);
+  const fileInputRef = useRef(null);
   const [grapeInput, setGrapeInput] = useState('');
   const [pairingInput, setPairingInput] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(null);
-  const [scanResult, setScanResult] = useState(null); // 'success' | 'partial' | null
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [wineSuggestions, setWineSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -101,8 +98,19 @@ export default function AddWine() {
     }
   };
 
+  const handlePhotoCapture = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => set('imageData', ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
     try {
       const wine = await addWine({
         ...form,
@@ -113,9 +121,11 @@ export default function AddWine() {
         drinkTo: form.drinkTo ? parseInt(form.drinkTo) : null,
         alcoholPercent: form.alcoholPercent ? parseFloat(form.alcoholPercent) : null,
       });
-      navigate(`/wine/${wine.id}`);
+      navigate(`/wine/${wine.id}`, { replace: true });
     } catch (err) {
       console.error('Failed to add wine:', err);
+      setSubmitError('Failed to save wine. Please try again.');
+      setSubmitting(false);
     }
   };
 
@@ -153,44 +163,15 @@ export default function AddWine() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {showCamera && (
-        <CameraCapture
-          onCapture={async (data) => {
-            set('imageData', data);
-            setShowCamera(false);
-            setScanning(true);
-            setScanResult(null);
-            setScanProgress({ stage: 'starting', message: 'Preparing scan...', percent: 0 });
-            try {
-              const extracted = await scanWineLabel(data, setScanProgress);
-              // Auto-fill form fields from scan (only fill empty fields)
-              if (extracted.name && !form.name) set('name', extracted.name);
-              if (extracted.producer && !form.producer) set('producer', extracted.producer);
-              if (extracted.vintage && !form.vintage) set('vintage', extracted.vintage.toString());
-              if (extracted.region && !form.region) set('region', extracted.region);
-              if (extracted.country && !form.country) set('country', extracted.country);
-              if (extracted.appellation && !form.appellation) set('appellation', extracted.appellation);
-              if (extracted.type && !form.type) set('type', extracted.type);
-              if (extracted.type) set('type', extracted.type);
-              if (extracted.grapeVarieties?.length && form.grapeVarieties.length === 0) {
-                set('grapeVarieties', extracted.grapeVarieties);
-              }
-              if (extracted.alcoholPercent && !form.alcoholPercent) {
-                set('alcoholPercent', extracted.alcoholPercent.toString());
-              }
-              if (extracted.classification && !form.classification) set('classification', extracted.classification);
-              // Determine result quality
-              const filledFields = [extracted.name, extracted.producer, extracted.vintage, extracted.region].filter(Boolean).length;
-              setScanResult(filledFields >= 2 ? 'success' : 'partial');
-            } catch (err) {
-              console.error('Scan failed:', err);
-              setScanResult('partial');
-            }
-            setScanning(false);
-          }}
-          onClose={() => setShowCamera(false)}
-        />
-      )}
+      {/* Hidden file input for photo capture */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handlePhotoCapture}
+        className="hidden"
+      />
 
       {/* Header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-40">
@@ -212,74 +193,31 @@ export default function AddWine() {
                 <img src={form.imageData} alt="Wine label" className="w-full max-h-64 object-contain rounded-xl bg-stone-100" />
                 <button
                   type="button"
-                  onClick={() => { set('imageData', null); setScanResult(null); setScanProgress(null); }}
+                  onClick={() => set('imageData', null)}
                   className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full shadow hover:bg-white"
                 >
                   <X size={16} />
                 </button>
               </div>
-
-              {/* Scanning Progress */}
-              {scanning && scanProgress && (
-                <div className="bg-grape-50 border border-grape-200 rounded-xl p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <ScanLine size={18} className="text-grape-600 animate-pulse" />
-                    <span className="text-sm font-medium text-grape-800">{scanProgress.message}</span>
-                  </div>
-                  <div className="w-full h-2 bg-grape-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-grape-500 rounded-full transition-all duration-500"
-                      style={{ width: `${scanProgress.percent}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Scan Result */}
-              {!scanning && scanResult === 'success' && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
-                  <CheckCircle2 size={18} className="text-green-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-green-800">Label scanned successfully</p>
-                    <p className="text-xs text-green-600 mt-1">
-                      Details have been auto-filled below. Review and correct any fields as needed.
-                    </p>
-                  </div>
-                </div>
-              )}
-              {!scanning && scanResult === 'partial' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                  <AlertTriangle size={18} className="text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-amber-800">Partial scan results</p>
-                    <p className="text-xs text-amber-600 mt-1">
-                      Some details could be extracted. Please review and fill in any missing fields manually.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Re-scan button */}
-              {!scanning && scanResult && (
-                <button
-                  type="button"
-                  onClick={() => setShowCamera(true)}
-                  className="text-sm text-grape-600 hover:text-grape-800 flex items-center gap-1"
-                >
-                  <Camera size={14} /> Retake photo & scan again
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-sm text-grape-600 hover:text-grape-800 flex items-center gap-1"
+              >
+                <Camera size={14} /> Retake photo
+              </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setShowCamera(true)}
-              className="w-full py-8 border-2 border-dashed border-stone-300 rounded-xl hover:border-burgundy hover:bg-burgundy/5 transition-colors flex flex-col items-center gap-2 text-stone-500"
-            >
-              <Camera size={32} />
-              <span className="font-medium">Scan Wine Label</span>
-              <span className="text-xs">Take a photo or upload — we'll read the label and auto-fill details</span>
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 py-8 border-2 border-dashed border-stone-300 rounded-xl hover:border-burgundy hover:bg-burgundy/5 transition-colors flex flex-col items-center gap-2 text-stone-500"
+              >
+                <Camera size={32} />
+                <span className="font-medium">Take Photo</span>
+              </button>
+            </div>
           )}
         </section>
 
@@ -553,7 +491,7 @@ export default function AddWine() {
               type="text"
               value={form.storageLocation}
               onChange={(e) => set('storageLocation', e.target.value)}
-              placeholder="e.g. Left wine fridge, Basement cellar, E29, AF16..."
+              placeholder="e.g. Basement cellar, E29, Cottage"
               className="w-full px-3 py-2.5 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-burgundy/30 focus:border-burgundy"
             />
           </div>
@@ -597,16 +535,16 @@ export default function AddWine() {
           </div>
         </section>
 
-        {/* Auto-fetch Pairings & Tasting Notes */}
-        {(form.name || form.region || form.grapeVarieties.length > 0) && (
+        {/* Fetch Wine Data from Internet */}
+        {form.name && (
           <section className="bg-gradient-to-r from-grape-50 to-wine-50 rounded-2xl border border-grape-200 p-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-stone-700 flex items-center gap-2">
-                  <Globe size={18} className="text-grape-600" /> Auto-fill Pairings & Tasting Notes
+                  <Globe size={18} className="text-grape-600" /> Fetch Wine Data
                 </h2>
                 <p className="text-sm text-stone-500 mt-1">
-                  Pull expert food pairings and tasting profiles based on your wine's grape, region, and style
+                  Auto-fill pairings, tasting notes, and drinking window from our database
                 </p>
               </div>
               <button
@@ -620,13 +558,13 @@ export default function AddWine() {
                 ) : lookupDone ? (
                   <><Sparkles size={16} /> Refresh</>
                 ) : (
-                  <><Sparkles size={16} /> Fetch</>
+                  <><Globe size={16} /> Fetch</>
                 )}
               </button>
             </div>
             {lookupDone && (
               <p className="text-xs text-green-600 mt-2">
-                Pairings and tasting notes have been populated below from our sommelier database.
+                Data has been populated below. Review and adjust as needed.
               </p>
             )}
           </section>
@@ -706,19 +644,30 @@ export default function AddWine() {
         </section>
 
         {/* Submit */}
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 text-center">
+            {submitError}
+          </div>
+        )}
         <div className="flex gap-3 pb-8">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100 transition-colors"
+            disabled={submitting}
+            className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 transition-colors shadow-lg"
+            disabled={submitting}
+            className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Add to Collection
+            {submitting ? (
+              <><Loader2 size={18} className="animate-spin" /> Saving...</>
+            ) : (
+              'Add to Collection'
+            )}
           </button>
         </div>
       </form>
