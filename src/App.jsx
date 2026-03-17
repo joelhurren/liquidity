@@ -6,6 +6,7 @@ import AddWine from './pages/AddWine';
 import WineDetail from './pages/WineDetail';
 import EditWine from './pages/EditWine';
 import SuggestWine from './pages/SuggestWine';
+import AddToHomeScreen from './components/AddToHomeScreen';
 
 function AuthGuard({ children }) {
   const { user, loading, isOfflineMode } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/suggest" element={<SuggestWine />} />
           </Routes>
         </AuthGuard>
+        <AddToHomeScreen />
       </BrowserRouter>
     </AuthProvider>
   );
