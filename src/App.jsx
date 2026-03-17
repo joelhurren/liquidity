@@ -40,8 +40,8 @@ export default function App() {
             <Route path="/edit/:id" element={<EditWine />} />
             <Route path="/suggest" element={<SuggestWine />} />
           </Routes>
+          <AddToHomeScreen />
         </AuthGuard>
-        <AddToHomeScreen />
       </BrowserRouter>
     </AuthProvider>
   );
