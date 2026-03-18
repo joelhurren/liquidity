@@ -8,6 +8,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const WINE_JSON_SCHEMA = `{
+  "name": "wine name as shown on the label",
+  "producer": "winery/producer name",
+  "vintage": year number or null,
+  "region": "wine region (e.g. Bordeaux, Napa Valley, Barossa Valley)",
+  "country": "country of origin",
+  "appellation": "specific appellation/AOC/DOC if applicable",
+  "type": "red|white|rosé|sparkling|dessert|fortified",
+  "grapeVarieties": ["array", "of", "grape", "varieties"],
+  "classification": "e.g. Grand Cru, Reserva, etc. if applicable",
+  "alcoholPercent": number or null,
+  "foodPairings": ["array of 5-8 specific food pairing suggestions"],
+  "tastingNotes": "2-3 sentence description of typical aromas, flavors, body, and finish",
+  "drinkFrom": year number (earliest year to drink, considering vintage),
+  "drinkTo": year number (latest year to drink at peak, considering vintage)
+}`;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -21,11 +38,89 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { name, producer, vintage, region, type, grapeVarieties } = await req.json();
+    const body = await req.json();
+    const { name, producer, vintage, region, type, grapeVarieties, image } = body;
 
+    // Image-based label scanning
+    if (image) {
+      // Extract base64 data and media type from data URL
+      const match = image.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (!match) {
+        return new Response(
+          JSON.stringify({ error: "Invalid image format. Expected base64 data URL." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const mediaType = match[1];
+      const imageData = match[2];
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: mediaType,
+                    data: imageData,
+                  },
+                },
+                {
+                  type: "text",
+                  text: `You are a master sommelier. Look at this wine label photo and extract all the information you can identify.
+
+Return a JSON object with the following fields. Only include fields you can confidently determine from the label. For fields you can't see or determine, omit them or set to null.
+
+${WINE_JSON_SCHEMA}
+
+Return ONLY valid JSON, no other text.`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Anthropic API error (vision):", errorText);
+        return new Response(
+          JSON.stringify({ error: "AI vision lookup failed" }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const data = await response.json();
+      const text = data.content?.[0]?.text || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return new Response(
+          JSON.stringify({ error: "Could not parse AI vision response" }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const wineData = JSON.parse(jsonMatch[0]);
+      return new Response(JSON.stringify(wineData), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Text-based lookup (existing flow)
     if (!name) {
       return new Response(
-        JSON.stringify({ error: "Wine name is required" }),
+        JSON.stringify({ error: "Wine name or image is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -58,20 +153,7 @@ Deno.serve(async (req) => {
 
 Return a JSON object with the following fields. Only include fields you are confident about. For fields you're unsure of, omit them or set to null.
 
-{
-  "producer": "winery/producer name if not already provided",
-  "region": "wine region (e.g. Bordeaux, Napa Valley, Barossa Valley)",
-  "country": "country of origin",
-  "appellation": "specific appellation/AOC/DOC if applicable",
-  "type": "red|white|rosé|sparkling|dessert|fortified",
-  "grapeVarieties": ["array", "of", "grape", "varieties"],
-  "classification": "e.g. Grand Cru, Reserva, etc. if applicable",
-  "alcoholPercent": number or null,
-  "foodPairings": ["array of 5-8 specific food pairing suggestions"],
-  "tastingNotes": "2-3 sentence description of typical aromas, flavors, body, and finish",
-  "drinkFrom": year number (earliest year to drink, considering vintage),
-  "drinkTo": year number (latest year to drink at peak, considering vintage)
-}
+${WINE_JSON_SCHEMA}
 
 Return ONLY valid JSON, no other text.`,
           },
@@ -91,7 +173,6 @@ Return ONLY valid JSON, no other text.`,
     const data = await response.json();
     const text = data.content?.[0]?.text || "";
 
-    // Parse the JSON from Claude's response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return new Response(

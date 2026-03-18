@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 
 const CACHE_KEY = 'wine-lookup-cache';
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MAX_IMAGE_WIDTH = 800;
+const JPEG_QUALITY = 0.7;
 
 function getCache() {
   try {
@@ -29,6 +31,71 @@ function getCached(key) {
 
 function buildCacheKey(wine) {
   return `${wine.name || ''}|${wine.producer || ''}|${wine.vintage || ''}|${wine.region || ''}|${wine.type || ''}`.toLowerCase();
+}
+
+/**
+ * Compress an image data URL to a smaller JPEG for the vision API.
+ * Resizes to MAX_IMAGE_WIDTH and converts to JPEG at JPEG_QUALITY.
+ */
+function compressImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      if (width > MAX_IMAGE_WIDTH) {
+        height = Math.round((height * MAX_IMAGE_WIDTH) / width);
+        width = MAX_IMAGE_WIDTH;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Scan a wine label image using Claude Haiku vision.
+ * Takes a data URL, compresses it, sends to edge function.
+ * Returns the same shape as lookupWineData.
+ */
+export async function scanWineLabel(imageDataUrl) {
+  if (!supabase) {
+    return { source: 'offline' };
+  }
+
+  const compressed = await compressImage(imageDataUrl);
+
+  const { data, error } = await supabase.functions.invoke('wine-lookup', {
+    body: { image: compressed },
+  });
+
+  if (error) {
+    console.error('Wine label scan failed:', error);
+    throw new Error('Wine label scan failed');
+  }
+
+  return {
+    name: data.name || null,
+    producer: data.producer || null,
+    vintage: data.vintage || null,
+    region: data.region || null,
+    country: data.country || null,
+    appellation: data.appellation || null,
+    type: data.type || null,
+    grapeVarieties: data.grapeVarieties || [],
+    classification: data.classification || null,
+    alcoholPercent: data.alcoholPercent || null,
+    foodPairings: data.foodPairings || [],
+    tastingNotes: data.tastingNotes || '',
+    drinkFrom: data.drinkFrom || null,
+    drinkTo: data.drinkTo || null,
+    source: 'ai-vision',
+  };
 }
 
 /**

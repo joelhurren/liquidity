@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
 import { WINE_TYPES, COMMON_GRAPES, FOOD_PAIRING_SUGGESTIONS, REGIONS, COUNTRIES, estimateDrinkingWindow } from '../data/wineData';
-import { lookupWineData } from '../data/wineLookup';
+import { lookupWineData, scanWineLabel } from '../data/wineLookup';
 import { searchKnownWines } from '../data/knownWines';
 import StarRating from '../components/StarRating';
 
@@ -15,6 +15,8 @@ export default function AddWine() {
   const [pairingInput, setPairingInput] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [wineSuggestions, setWineSuggestions] = useState([]);
@@ -98,11 +100,53 @@ export default function AddWine() {
     }
   };
 
-  const handlePhotoCapture = (e) => {
+  const applyAIData = (data) => {
+    if (data.name && !form.name) set('name', data.name);
+    if (data.producer && !form.producer) set('producer', data.producer);
+    if (data.vintage && !form.vintage) set('vintage', data.vintage.toString());
+    if (data.region && !form.region) set('region', data.region);
+    if (data.country && !form.country) set('country', data.country);
+    if (data.appellation && !form.appellation) set('appellation', data.appellation);
+    if (data.type) set('type', data.type);
+    if (data.grapeVarieties?.length && form.grapeVarieties.length === 0) {
+      set('grapeVarieties', data.grapeVarieties);
+    }
+    if (data.classification && !form.classification) set('classification', data.classification);
+    if (data.alcoholPercent && !form.alcoholPercent) {
+      set('alcoholPercent', data.alcoholPercent.toString());
+    }
+    if (data.foodPairings?.length) {
+      const newPairings = data.foodPairings.filter((p) => !form.foodPairings.includes(p));
+      set('foodPairings', [...form.foodPairings, ...newPairings.slice(0, 8)]);
+    }
+    if (data.tastingNotes && !form.tastingNotes) set('tastingNotes', data.tastingNotes);
+    if (data.drinkFrom && !form.drinkFrom) {
+      set('drinkFrom', data.drinkFrom.toString());
+      setTimeout(() => set('drinkTo', (data.drinkTo || '').toString()), 0);
+    }
+  };
+
+  const handlePhotoCapture = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => set('imageData', ev.target.result);
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      set('imageData', dataUrl);
+
+      // Auto-scan the label with AI vision
+      setScanning(true);
+      setScanError(null);
+      try {
+        const data = await scanWineLabel(dataUrl);
+        applyAIData(data);
+        setLookupDone(true);
+      } catch (err) {
+        console.error('Label scan error:', err);
+        setScanError('Could not read label. Try the manual "Fetch Wine Data" button instead.');
+      }
+      setScanning(false);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -145,30 +189,7 @@ export default function AddWine() {
         grapeVarieties: form.grapeVarieties,
         classification: form.classification,
       });
-      // Fill empty fields from AI response
-      if (data.producer && !form.producer) set('producer', data.producer);
-      if (data.region && !form.region) set('region', data.region);
-      if (data.country && !form.country) set('country', data.country);
-      if (data.appellation && !form.appellation) set('appellation', data.appellation);
-      if (data.type) set('type', data.type);
-      if (data.grapeVarieties?.length && form.grapeVarieties.length === 0) {
-        set('grapeVarieties', data.grapeVarieties);
-      }
-      if (data.classification && !form.classification) set('classification', data.classification);
-      if (data.alcoholPercent && !form.alcoholPercent) {
-        set('alcoholPercent', data.alcoholPercent.toString());
-      }
-      if (data.foodPairings?.length) {
-        const newPairings = data.foodPairings.filter((p) => !form.foodPairings.includes(p));
-        set('foodPairings', [...form.foodPairings, ...newPairings.slice(0, 8)]);
-      }
-      if (data.tastingNotes && !form.tastingNotes) {
-        set('tastingNotes', data.tastingNotes);
-      }
-      if (data.drinkFrom && !form.drinkFrom) {
-        set('drinkFrom', data.drinkFrom.toString());
-        setTimeout(() => set('drinkTo', (data.drinkTo || '').toString()), 0);
-      }
+      applyAIData(data);
       setLookupDone(true);
     } catch (err) {
       console.error('Wine lookup error:', err);
@@ -208,12 +229,23 @@ export default function AddWine() {
                 <img src={form.imageData} alt="Wine label" className="w-full max-h-64 object-contain rounded-xl bg-stone-100" />
                 <button
                   type="button"
-                  onClick={() => set('imageData', null)}
+                  onClick={() => { set('imageData', null); setScanError(null); }}
                   className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full shadow hover:bg-white"
                 >
                   <X size={16} />
                 </button>
+                {scanning && (
+                  <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
+                    <div className="bg-white rounded-lg px-4 py-3 flex items-center gap-2 shadow-lg">
+                      <Loader2 size={18} className="animate-spin text-grape-600" />
+                      <span className="text-sm font-medium text-stone-700">Reading label...</span>
+                    </div>
+                  </div>
+                )}
               </div>
+              {scanError && (
+                <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{scanError}</p>
+              )}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
