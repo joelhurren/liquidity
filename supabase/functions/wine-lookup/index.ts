@@ -22,7 +22,12 @@ const WINE_JSON_SCHEMA = `{
   "foodPairings": ["array of 5-8 specific food pairing suggestions"],
   "tastingNotes": "2-3 sentence description of typical aromas, flavors, body, and finish",
   "drinkFrom": year number (earliest year to drink, considering vintage),
-  "drinkTo": year number (latest year to drink at peak, considering vintage)
+  "drinkTo": year number (latest year to drink at peak, considering vintage),
+  "criticScores": [
+    { "source": "critic name (e.g. Robert Parker, James Suckling, Wine Spectator, Jancis Robinson, Decanter)", "score": number, "maxScore": 100 (or 20 for Jancis Robinson), "vintage": year or null }
+  ],
+  "communityScore": number 1.0-5.0 (estimated community/Vivino-style average rating, null if unknown),
+  "qualityPercentile": number 1-100 (what percentile this wine falls in among all wines globally — e.g. 95 means better than 95% of wines)
 }`;
 
 Deno.serve(async (req) => {

@@ -45,6 +45,9 @@ function toSnake(wine) {
     alcohol_percent: wine.alcoholPercent || null,
     classification: wine.classification || '',
     storage_location: wine.storageLocation || '',
+    critic_scores: wine.criticScores || [],
+    community_score: wine.communityScore || null,
+    quality_percentile: wine.qualityPercentile || null,
   };
 }
 
@@ -76,6 +79,9 @@ function toCamel(row) {
     alcoholPercent: row.alcohol_percent,
     classification: row.classification || '',
     storageLocation: row.storage_location || '',
+    criticScores: row.critic_scores || [],
+    communityScore: row.community_score || null,
+    qualityPercentile: row.quality_percentile || null,
   };
 }
 
@@ -165,7 +171,8 @@ export function useWines() {
       drinkFrom: 'drink_from', drinkTo: 'drink_to', rating: 'rating', reviews: 'reviews',
       tastingNotes: 'tasting_notes', foodPairings: 'food_pairings', imageData: 'image_data',
       alcoholPercent: 'alcohol_percent', classification: 'classification',
-      storageLocation: 'storage_location',
+      storageLocation: 'storage_location', criticScores: 'critic_scores',
+      communityScore: 'community_score', qualityPercentile: 'quality_percentile',
     };
     for (const [key, val] of Object.entries(updates)) {
       if (fieldMap[key]) snakeUpdates[fieldMap[key]] = val;

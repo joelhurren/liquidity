@@ -652,10 +652,25 @@ export default function WineDetail() {
 }
 
 function WineScoresCard({ wine }) {
-  const scores = getWineScores(wine);
-  if (!scores) return null;
+  const staticScores = getWineScores(wine);
 
-  const { community, critics, percentile, avgCriticScore } = scores;
+  // Build scores from static DB or from AI-provided data on the wine record
+  const aiCritics = wine.criticScores || [];
+  const aiCommunity = wine.communityScore ? { avg: wine.communityScore, ratings: null } : null;
+  const aiPercentile = wine.qualityPercentile
+    ? { pct: 100 - wine.qualityPercentile, label: `Top ${100 - wine.qualityPercentile}% of all wines` }
+    : null;
+
+  const community = staticScores?.community || aiCommunity;
+  const critics = staticScores?.critics || aiCritics;
+  const percentile = staticScores?.percentile || aiPercentile;
+  const avgCriticScore = staticScores?.avgCriticScore || (
+    aiCritics.length > 0
+      ? Math.round(aiCritics.filter(c => !c.maxScore || c.maxScore === 100).map(c => c.score).reduce((a, b) => a + b, 0) / aiCritics.filter(c => !c.maxScore || c.maxScore === 100).length)
+      : null
+  );
+
+  if (!community && critics.length === 0 && !percentile) return null;
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 p-5">

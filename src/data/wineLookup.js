@@ -111,6 +111,9 @@ export async function scanWineLabel(imageDataUrl) {
     tastingNotes: data.tastingNotes || '',
     drinkFrom: data.drinkFrom || null,
     drinkTo: data.drinkTo || null,
+    criticScores: data.criticScores || [],
+    communityScore: data.communityScore || null,
+    qualityPercentile: data.qualityPercentile || null,
     source: 'ai-vision',
   };
 }
@@ -159,6 +162,9 @@ export async function lookupWineData(wine) {
     tastingNotes: data.tastingNotes || '',
     drinkFrom: data.drinkFrom || null,
     drinkTo: data.drinkTo || null,
+    criticScores: data.criticScores || [],
+    communityScore: data.communityScore || null,
+    qualityPercentile: data.qualityPercentile || null,
     source: 'ai',
   };
 

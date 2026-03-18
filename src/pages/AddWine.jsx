@@ -44,6 +44,9 @@ export default function AddWine() {
     classification: '',
     storageLocation: '',
     imageData: null,
+    criticScores: [],
+    communityScore: null,
+    qualityPercentile: null,
   });
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
@@ -124,6 +127,9 @@ export default function AddWine() {
       set('drinkFrom', data.drinkFrom.toString());
       setTimeout(() => set('drinkTo', (data.drinkTo || '').toString()), 0);
     }
+    if (data.criticScores?.length) set('criticScores', data.criticScores);
+    if (data.communityScore) set('communityScore', data.communityScore);
+    if (data.qualityPercentile) set('qualityPercentile', data.qualityPercentile);
   };
 
   const handlePhotoCapture = async (e) => {
