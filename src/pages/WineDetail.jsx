@@ -294,11 +294,14 @@ export default function WineDetail() {
                   setLookupLoading(true);
                   try {
                     const data = await lookupWineData(wine);
-                    if (data.drinkingWindow) {
-                      const updated = await updateWine(wine.id, {
-                        drinkFrom: data.drinkingWindow.from,
-                        drinkTo: data.drinkingWindow.to,
-                      });
+                    const updates = {};
+                    if (data.drinkFrom) updates.drinkFrom = data.drinkFrom;
+                    if (data.drinkTo) updates.drinkTo = data.drinkTo;
+                    if (data.criticScores?.length && !wine.criticScores?.length) updates.criticScores = data.criticScores;
+                    if (data.communityScore && !wine.communityScore) updates.communityScore = data.communityScore;
+                    if (data.qualityPercentile && !wine.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
+                    if (Object.keys(updates).length) {
+                      const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
                     }
                   } catch {}
@@ -338,10 +341,11 @@ export default function WineDetail() {
                     if (data.foodPairings?.length) {
                       updates.foodPairings = [...new Set([...(wine.foodPairings || []), ...data.foodPairings.slice(0, 8)])];
                     }
-                    if (data.drinkingWindow && !wine.drinkFrom) {
-                      updates.drinkFrom = data.drinkingWindow.from;
-                      updates.drinkTo = data.drinkingWindow.to;
-                    }
+                    if (data.drinkFrom && !wine.drinkFrom) updates.drinkFrom = data.drinkFrom;
+                    if (data.drinkTo && !wine.drinkFrom) updates.drinkTo = data.drinkTo;
+                    if (data.criticScores?.length && !wine.criticScores?.length) updates.criticScores = data.criticScores;
+                    if (data.communityScore && !wine.communityScore) updates.communityScore = data.communityScore;
+                    if (data.qualityPercentile && !wine.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
                     if (Object.keys(updates).length) {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
@@ -383,10 +387,11 @@ export default function WineDetail() {
                     if (data.tastingNotes && !wine.tastingNotes) {
                       updates.tastingNotes = data.tastingNotes;
                     }
-                    if (data.drinkingWindow && !wine.drinkFrom) {
-                      updates.drinkFrom = data.drinkingWindow.from;
-                      updates.drinkTo = data.drinkingWindow.to;
-                    }
+                    if (data.drinkFrom && !wine.drinkFrom) updates.drinkFrom = data.drinkFrom;
+                    if (data.drinkTo && !wine.drinkFrom) updates.drinkTo = data.drinkTo;
+                    if (data.criticScores?.length && !wine.criticScores?.length) updates.criticScores = data.criticScores;
+                    if (data.communityScore && !wine.communityScore) updates.communityScore = data.communityScore;
+                    if (data.qualityPercentile && !wine.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
                     if (Object.keys(updates).length) {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
