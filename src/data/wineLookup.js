@@ -2,6 +2,9 @@
 
 import { supabase } from '../lib/supabase';
 
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
 const CACHE_KEY = 'wine-lookup-cache';
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_IMAGE_WIDTH = 640;
@@ -64,19 +67,28 @@ function compressImage(dataUrl) {
  * Returns the same shape as lookupWineData.
  */
 export async function scanWineLabel(imageDataUrl) {
-  if (!supabase) {
+  if (!supabase || !SUPABASE_URL) {
     return { source: 'offline' };
   }
 
   const compressed = await compressImage(imageDataUrl);
 
-  const { data, error } = await supabase.functions.invoke('wine-lookup', {
-    body: { image: compressed },
+  // Call edge function directly via fetch to avoid supabase client body size limits
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/wine-lookup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ image: compressed }),
   });
 
-  if (error) {
-    console.error('Wine label scan failed:', error.message || error);
-    throw new Error(error.message || 'Wine label scan failed');
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error('Wine label scan failed:', response.status, data);
+    throw new Error(data?.error || `Scan failed (${response.status})`);
   }
 
   if (data?.error) {
