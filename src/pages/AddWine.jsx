@@ -143,7 +143,7 @@ export default function AddWine() {
         setLookupDone(true);
       } catch (err) {
         console.error('Label scan error:', err);
-        setScanError('Could not read label. Try the manual "Fetch Wine Data" button instead.');
+        setScanError(`Could not read label: ${err.message}. Try entering the wine name manually below.`);
       }
       setScanning(false);
     };

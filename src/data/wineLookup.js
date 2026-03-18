@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase';
 
 const CACHE_KEY = 'wine-lookup-cache';
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MAX_IMAGE_WIDTH = 800;
-const JPEG_QUALITY = 0.7;
+const MAX_IMAGE_WIDTH = 640;
+const JPEG_QUALITY = 0.6;
 
 function getCache() {
   try {
@@ -75,8 +75,13 @@ export async function scanWineLabel(imageDataUrl) {
   });
 
   if (error) {
-    console.error('Wine label scan failed:', error);
-    throw new Error('Wine label scan failed');
+    console.error('Wine label scan failed:', error.message || error);
+    throw new Error(error.message || 'Wine label scan failed');
+  }
+
+  if (data?.error) {
+    console.error('Wine label scan error:', data.error);
+    throw new Error(data.error);
   }
 
   return {
