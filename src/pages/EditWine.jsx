@@ -311,17 +311,24 @@ export default function EditWine() {
           </div>
         </section>
 
-        <div className="flex gap-3 pb-8">
+        {/* Spacer for sticky bottom bar */}
+        <div className="h-28" />
+      </form>
+
+      {/* Sticky bottom bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-4 pt-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex gap-3 max-w-3xl mx-auto">
           <button type="button" onClick={() => navigate(-1)}
             className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100">
             Cancel
           </button>
-          <button type="submit"
+          <button type="button"
+            onClick={() => document.querySelector('form')?.requestSubmit()}
             className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 shadow-lg">
             Save Changes
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

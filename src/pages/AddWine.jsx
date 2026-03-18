@@ -696,13 +696,18 @@ export default function AddWine() {
           </div>
         </section>
 
-        {/* Submit */}
+        {/* Spacer for sticky bottom bar */}
+        <div className="h-28" />
+      </form>
+
+      {/* Sticky bottom bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-4 pt-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         {submitError && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 text-center">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-sm text-red-700 text-center mb-2">
             {submitError}
           </div>
         )}
-        <div className="flex gap-3 pb-8">
+        <div className="flex gap-3 max-w-3xl mx-auto">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -712,7 +717,11 @@ export default function AddWine() {
             Cancel
           </button>
           <button
-            type="submit"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              document.querySelector('form')?.requestSubmit();
+            }}
             disabled={submitting}
             className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
@@ -723,7 +732,7 @@ export default function AddWine() {
             )}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
