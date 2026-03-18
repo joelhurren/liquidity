@@ -94,10 +94,10 @@ Return ONLY valid JSON, no other text.`,
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Anthropic API error (vision):", errorText);
+        console.error("Anthropic API error (vision):", response.status, errorText);
         return new Response(
-          JSON.stringify({ error: "AI vision lookup failed" }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: `AI vision failed (${response.status}): ${errorText.slice(0, 200)}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
