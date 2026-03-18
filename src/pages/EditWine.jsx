@@ -103,7 +103,7 @@ export default function EditWine() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <form id="edit-wine-form" onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Basic Info */}
         <section className="bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
           <h2 className="font-semibold text-stone-700">Wine Details</h2>
@@ -322,8 +322,8 @@ export default function EditWine() {
             className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100">
             Cancel
           </button>
-          <button type="button"
-            onClick={() => document.querySelector('form')?.requestSubmit()}
+          <button type="submit"
+            form="edit-wine-form"
             className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 shadow-lg">
             Save Changes
           </button>

@@ -225,7 +225,7 @@ export default function AddWine() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <form id="add-wine-form" onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Photo Section */}
         <section className="bg-white rounded-2xl border border-stone-200 p-5">
           <h2 className="font-semibold text-stone-700 mb-3">Photo</h2>
@@ -717,11 +717,8 @@ export default function AddWine() {
             Cancel
           </button>
           <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              document.querySelector('form')?.requestSubmit();
-            }}
+            type="submit"
+            form="add-wine-form"
             disabled={submitting}
             className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
