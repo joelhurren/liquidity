@@ -312,23 +312,22 @@ export default function EditWine() {
         </section>
 
         {/* Spacer for sticky bottom bar */}
-        <div className="h-28" />
-      </form>
+        <div className="h-24" />
 
-      {/* Sticky bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-4 pt-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-        <div className="flex gap-3 max-w-3xl mx-auto">
-          <button type="button" onClick={() => navigate(-1)}
-            className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100">
-            Cancel
-          </button>
-          <button type="submit"
-            form="edit-wine-form"
-            className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 shadow-lg">
-            Save Changes
-          </button>
+        {/* Sticky bottom bar - inside form for native submit */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-4 pt-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          <div className="flex gap-3 max-w-3xl mx-auto">
+            <button type="button" onClick={() => navigate(-1)}
+              className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100">
+              Cancel
+            </button>
+            <button type="submit"
+              className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 shadow-lg">
+              Save Changes
+            </button>
+          </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

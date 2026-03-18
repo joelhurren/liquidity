@@ -697,39 +697,38 @@ export default function AddWine() {
         </section>
 
         {/* Spacer for sticky bottom bar */}
-        <div className="h-28" />
-      </form>
+        <div className="h-24" />
 
-      {/* Sticky bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-4 pt-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-        {submitError && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-sm text-red-700 text-center mb-2">
-            {submitError}
+        {/* Sticky bottom bar - inside form for native submit */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-4 pt-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          {submitError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-sm text-red-700 text-center mb-2">
+              {submitError}
+            </div>
+          )}
+          <div className="flex gap-3 max-w-3xl mx-auto">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              disabled={submitting}
+              className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitting ? (
+                <><Loader2 size={18} className="animate-spin" /> Saving...</>
+              ) : (
+                'Add to Collection'
+              )}
+            </button>
           </div>
-        )}
-        <div className="flex gap-3 max-w-3xl mx-auto">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={submitting}
-            className="flex-1 py-3 border border-stone-300 rounded-xl font-semibold hover:bg-stone-100 transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            form="add-wine-form"
-            disabled={submitting}
-            className="flex-1 py-3 bg-burgundy text-white rounded-xl font-semibold hover:bg-burgundy/90 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {submitting ? (
-              <><Loader2 size={18} className="animate-spin" /> Saving...</>
-            ) : (
-              'Add to Collection'
-            )}
-          </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

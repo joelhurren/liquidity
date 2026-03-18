@@ -304,7 +304,7 @@ export default function WineDetail() {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
                     }
-                  } catch {}
+                  } catch (err) { console.error('Fetch failed:', err); }
                   setLookupLoading(false);
                 }}
                 disabled={lookupLoading}
@@ -350,7 +350,7 @@ export default function WineDetail() {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
                     }
-                  } catch {}
+                  } catch (err) { console.error('Fetch failed:', err); }
                   setLookupLoading(false);
                 }}
                 disabled={lookupLoading}
@@ -396,7 +396,7 @@ export default function WineDetail() {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
                     }
-                  } catch {}
+                  } catch (err) { console.error('Fetch failed:', err); }
                   setLookupLoading(false);
                 }}
                 disabled={lookupLoading}
