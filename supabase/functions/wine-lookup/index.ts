@@ -26,8 +26,8 @@ const WINE_JSON_SCHEMA = `{
   "criticScores": [
     { "source": "critic name (e.g. Robert Parker, James Suckling, Wine Spectator, Jancis Robinson, Decanter)", "score": number, "maxScore": 100 (or 20 for Jancis Robinson), "vintage": year or null }
   ],
-  "communityScore": number 1.0-5.0 (estimated community/Vivino-style average rating, null if unknown),
-  "qualityPercentile": number 1-100 (what percentile this wine falls in among all wines globally — e.g. 95 means better than 95% of wines)
+  "communityScore": number 1.0-5.0 (estimated Vivino-style community average rating — ALWAYS provide your best estimate even for lesser-known wines),
+  "qualityPercentile": number 1-100 (what percentile this wine falls in among ALL wines globally — e.g. 95 means top 5%. ALWAYS provide your best estimate based on region, producer reputation, classification, and price tier)
 }`;
 
 Deno.serve(async (req) => {
@@ -156,7 +156,7 @@ Return ONLY valid JSON, no other text.`,
             role: "user",
             content: `You are a master sommelier. Given this wine: ${wineDescription}
 
-Return a JSON object with the following fields. Only include fields you are confident about. For fields you're unsure of, omit them or set to null.
+Return a JSON object with the following fields. For most fields, only include if confident. But for criticScores, communityScore, and qualityPercentile you MUST always provide your best estimate — even for lesser-known wines, estimate based on region, producer, classification, grape variety, and price tier.
 
 ${WINE_JSON_SCHEMA}
 

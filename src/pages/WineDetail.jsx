@@ -280,7 +280,23 @@ export default function WineDetail() {
         </div>
 
         {/* Scores & Ratings */}
-        <WineScoresCard wine={wine} />
+        <WineScoresCard wine={wine} onFetchScores={async () => {
+          setLookupLoading(true);
+          try {
+            const data = await lookupWineData(wine);
+            const updates = {};
+            if (data.criticScores?.length) updates.criticScores = data.criticScores;
+            if (data.communityScore) updates.communityScore = data.communityScore;
+            if (data.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
+            if (data.drinkFrom && !wine.drinkFrom) updates.drinkFrom = data.drinkFrom;
+            if (data.drinkTo && !wine.drinkTo) updates.drinkTo = data.drinkTo;
+            if (Object.keys(updates).length) {
+              const updated = await updateWine(wine.id, updates);
+              if (updated) setWine(updated);
+            }
+          } catch (err) { console.error('Fetch scores failed:', err); }
+          setLookupLoading(false);
+        }} lookupLoading={lookupLoading} />
 
         {/* Drinking Window */}
         <div className="bg-white rounded-2xl border border-stone-200 p-5">
@@ -656,7 +672,7 @@ export default function WineDetail() {
   );
 }
 
-function WineScoresCard({ wine }) {
+function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
   const staticScores = getWineScores(wine);
 
   // Build scores from static DB or from AI-provided data on the wine record
@@ -675,13 +691,32 @@ function WineScoresCard({ wine }) {
       : null
   );
 
-  if (!community && critics.length === 0 && !percentile) return null;
+  const hasNoScores = !community && critics.length === 0 && !percentile;
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 p-5">
-      <h3 className="font-semibold text-stone-700 mb-4 flex items-center gap-2">
-        <Tag size={18} /> Ratings & Scores
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-stone-700 flex items-center gap-2">
+          <Tag size={18} /> Ratings & Scores
+        </h3>
+        {hasNoScores && onFetchScores && (
+          <button
+            onClick={onFetchScores}
+            disabled={lookupLoading}
+            className="text-sm text-grape-600 hover:text-grape-800 flex items-center gap-1"
+          >
+            {lookupLoading ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+            Fetch Scores
+          </button>
+        )}
+      </div>
+
+      {hasNoScores && !lookupLoading && (
+        <p className="text-sm text-stone-400">No scores yet. Click "Fetch Scores" to get professional ratings and community scores.</p>
+      )}
+      {hasNoScores && lookupLoading && (
+        <p className="text-sm text-stone-400 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Fetching scores...</p>
+      )}
 
       {/* Community Rating + Percentile */}
       {(community || percentile) && (
