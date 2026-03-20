@@ -2,16 +2,19 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
-// Vivino rating-to-percentile mapping (based on Vivino's published benchmarks)
+// Vivino rating-to-percentile mapping (calibrated against real Vivino global rank data)
+// e.g. 4.2 rating wine = rank ~24k/1.6M = top ~2%
 function vivinoPercentile(rating: number): number {
   if (rating >= 4.5) return 99;
-  if (rating >= 4.3) return 97;
-  if (rating >= 4.1) return 94;
-  if (rating >= 4.0) return 91;
-  if (rating >= 3.9) return 87;
-  if (rating >= 3.8) return 82;
-  if (rating >= 3.7) return 76;
-  if (rating >= 3.6) return 69;
+  if (rating >= 4.4) return 99;
+  if (rating >= 4.3) return 98;
+  if (rating >= 4.2) return 98;
+  if (rating >= 4.1) return 96;
+  if (rating >= 4.0) return 93;
+  if (rating >= 3.9) return 89;
+  if (rating >= 3.8) return 84;
+  if (rating >= 3.7) return 78;
+  if (rating >= 3.6) return 70;
   if (rating >= 3.5) return 61;
   if (rating >= 3.4) return 52;
   if (rating >= 3.3) return 43;
@@ -27,7 +30,6 @@ async function searchVivino(wineName: string, vintage?: number | null): Promise<
     const query = [wineName, vintage].filter(Boolean).join(" ");
     const searchUrl = `https://www.vivino.com/search/wines?q=${encodeURIComponent(query)}`;
 
-    // Step 1: Fetch Vivino search page HTML to extract vintage_id from meta tags
     const res = await fetch(searchUrl, {
       headers: { "User-Agent": UA, "Accept": "text/html" },
       redirect: "follow",
@@ -40,52 +42,108 @@ async function searchVivino(wineName: string, vintage?: number | null): Promise<
 
     const html = await res.text();
 
-    // Extract vintage_id from meta tag: <meta property="al:android:url" content="vivino://?vintage_id=179657377"
-    const vintageIdMatch = html.match(/vintage_id=(\d+)/);
-    if (!vintageIdMatch) {
-      console.log("Vivino: no vintage_id found in search page");
+    // Vivino search page embeds wine data as HTML-entity-encoded JSON in the page.
+    // Decode &quot; entities and extract wine objects with ratings.
+    const decoded = html.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+    // Vivino embeds wine data as HTML-entity-encoded JSON in the search page.
+    // Structure: each result has a vintage with stats, then a "wine":{} object,
+    // followed later by wine-level statistics (with higher ratings_count).
+
+    // Step 1: Find all wine objects
+    const winePattern = /"wine":\{"id":(\d+),"name":"([^"]+)","seo_name":"([^"]+)"/g;
+    const wines: Array<{ id: number; name: string; seoName: string; pos: number }> = [];
+    let wm;
+    while ((wm = winePattern.exec(decoded)) !== null) {
+      wines.push({ id: parseInt(wm[1]), name: wm[2], seoName: wm[3], pos: wm.index });
+    }
+
+    // Step 2: For each wine, find the vintage-level statistics (first stats block before the wine object)
+    // The structure is: vintage stats → wine object → wine-level stats
+    // We want the vintage-specific rating (matches the requested vintage)
+    const wineBlocks: Array<{ rating: number; count: number; wineId: number; seoName: string; wineName: string }> = [];
+
+    for (const wine of wines) {
+      // Look backwards from the wine position for the vintage stats
+      const beforeChunk = decoded.slice(Math.max(0, wine.pos - 3000), wine.pos);
+      const statsMatches = [...beforeChunk.matchAll(/"ratings_count":(\d+),"ratings_average":([\d.]+)/g)];
+      // Take the last match (closest to the wine object) — that's the vintage stats
+      const vintageStats = statsMatches.length > 0 ? statsMatches[statsMatches.length - 1] : null;
+
+      // Also find wine-level stats (after the wine object, higher count)
+      const afterChunk = decoded.slice(wine.pos, wine.pos + 15000);
+      const afterMatches = [...afterChunk.matchAll(/"ratings_count":(\d+),"ratings_average":([\d.]+)/g)];
+      let wineLevelStats = null;
+      for (const m of afterMatches) {
+        const count = parseInt(m[1]);
+        const rating = parseFloat(m[2]);
+        if (count > 0 && rating > 0 && (!wineLevelStats || count > wineLevelStats.count)) {
+          wineLevelStats = { count, rating };
+        }
+      }
+
+      // Use vintage stats if they have a rating, otherwise fall back to wine-level
+      const vRating = vintageStats ? parseFloat(vintageStats[2]) : 0;
+      const vCount = vintageStats ? parseInt(vintageStats[1]) : 0;
+
+      const rating = vRating > 0 ? vRating : (wineLevelStats?.rating || 0);
+      const count = vRating > 0 ? vCount : (wineLevelStats?.count || 0);
+
+      if (rating > 0) {
+        wineBlocks.push({ rating, count, wineId: wine.id, seoName: wine.seoName, wineName: wine.name });
+      }
+    }
+
+    if (wineBlocks.length === 0) {
+      console.log("Vivino: no wine data found in search page");
       return null;
     }
 
-    const vintageId = vintageIdMatch[1];
-
-    // Step 2: Call the vintages API to get wine-level stats
-    const apiRes = await fetch(`https://www.vivino.com/api/vintages/${vintageId}`, {
-      headers: { "User-Agent": UA, "Accept": "application/json" },
-    });
-
-    if (!apiRes.ok) {
-      console.error("Vivino vintages API failed:", apiRes.status);
-      return null;
+    // Pick the best matching wine — prefer the one whose name most closely matches the search
+    // Score each by how many words from the query appear in the wine name
+    const queryWords = wineName.toLowerCase().split(/\s+/);
+    let best = wineBlocks[0];
+    let bestScore = 0;
+    for (const block of wineBlocks) {
+      const nameLower = block.wineName.toLowerCase();
+      const score = queryWords.filter(w => nameLower.includes(w)).length;
+      // Prefer higher rating count as tiebreaker (more popular = more likely the right wine)
+      if (score > bestScore || (score === bestScore && block.count > best.count)) {
+        best = block;
+        bestScore = score;
+      }
     }
+    console.log(`Vivino: matched "${best.wineName}" (ID:${best.wineId}) — ${best.rating}/5.0 (${best.count} ratings)`);
 
-    const apiData = await apiRes.json();
-    const wine = apiData?.vintage?.wine;
-    const wineStats = wine?.statistics;
-    const vintageStats = apiData?.vintage?.statistics;
-
-    // Use wine-level stats (across all vintages) for the main rating,
-    // fall back to vintage-specific if wine-level is missing
-    const rating = wineStats?.ratings_average || vintageStats?.ratings_average;
-    const count = wineStats?.ratings_count || vintageStats?.ratings_count;
-
-    if (!rating || rating === 0) {
-      console.log("Vivino: wine has no rating yet");
-      return null;
+    // Step 3: Fetch the wine detail page to get the real global rank for percentile
+    let qualityPercentile = vivinoPercentile(best.rating); // fallback
+    try {
+      const detailUrl = `https://www.vivino.com/w/${best.wineId}`;
+      const detailRes = await fetch(detailUrl, {
+        headers: { "User-Agent": UA, "Accept": "text/html" },
+        redirect: "follow",
+      });
+      if (detailRes.ok) {
+        const detailHtml = await detailRes.text();
+        const detailDecoded = detailHtml.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+        // Extract global rank: "global":{"description":"Global Rank","total":N,"rank":N}
+        const rankMatch = detailDecoded.match(/"global":\{"description":"Global Rank","total":(\d+),"rank":(\d+)\}/);
+        if (rankMatch) {
+          const total = parseInt(rankMatch[1]);
+          const rank = parseInt(rankMatch[2]);
+          qualityPercentile = Math.round((1 - rank / total) * 100);
+          console.log(`Vivino: global rank ${rank}/${total} = top ${100 - qualityPercentile}%`);
+        }
+      }
+    } catch (e) {
+      console.error("Vivino detail page fetch failed:", e);
     }
-
-    const score = parseFloat(rating);
-    const seoName = apiData?.vintage?.seo_name || wine?.seo_name;
-    const wineId = wine?.id;
-    const vivinoUrl = wineId
-      ? `https://www.vivino.com/w/${wineId}`
-      : searchUrl;
 
     return {
-      communityScore: Math.round(score * 10) / 10,
-      ratings: parseInt(count) || 0,
-      qualityPercentile: vivinoPercentile(score),
-      vivinoUrl,
+      communityScore: Math.round(best.rating * 10) / 10,
+      ratings: best.count,
+      qualityPercentile,
+      vivinoUrl: `https://www.vivino.com/w/${best.wineId}`,
     };
   } catch (err) {
     console.error("Vivino search error:", err);
