@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Wine, Search, Filter, ArrowUpDown, Grid3X3, List, Sparkles, LogOut } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
@@ -9,7 +9,6 @@ import StarRating from '../components/StarRating';
 import WineBottle from '../components/WineBottle';
 
 export default function Dashboard() {
-  useEffect(() => { window.scrollTo(0, 0); }, []);
   const { wines, loading } = useWines();
   const { user, signOut, isOfflineMode } = useAuth();
   const [search, setSearch] = useState('');

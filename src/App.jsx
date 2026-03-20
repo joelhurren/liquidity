@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -7,6 +8,12 @@ import WineDetail from './pages/WineDetail';
 import EditWine from './pages/EditWine';
 import SuggestWine from './pages/SuggestWine';
 import AddToHomeScreen from './components/AddToHomeScreen';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
 
 function AuthGuard({ children }) {
   const { user, loading, isOfflineMode } = useAuth();
@@ -32,6 +39,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <AuthGuard>
           <Routes>
             <Route path="/" element={<Dashboard />} />
