@@ -672,6 +672,16 @@ export default function WineDetail() {
   );
 }
 
+function getCriticSearchUrl(source, searchQuery) {
+  const s = (source || '').toLowerCase();
+  if (s.includes('parker') || s.includes('wine advocate')) return `https://www.robertparker.com/search/wines?q=${searchQuery}`;
+  if (s.includes('suckling')) return `https://www.jamessuckling.com/tasting-notes/?q=${searchQuery}`;
+  if (s.includes('spectator')) return `https://www.winespectator.com/wine/search?query=${searchQuery}`;
+  if (s.includes('robinson') || s.includes('jancis')) return `https://www.jancisrobinson.com/tastings?q=${searchQuery}`;
+  if (s.includes('decanter')) return `https://www.decanter.com/wine-reviews/?query=${searchQuery}`;
+  return null;
+}
+
 function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
   const staticScores = getWineScores(wine);
 
@@ -722,24 +732,35 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
       {(community || percentile) && (
         <div className="flex items-center gap-4 mb-4 pb-4 border-b border-stone-100">
           {community && (
-            <div className="flex items-center gap-3">
+            <a
+              href={`https://www.vivino.com/search/wines?q=${encodeURIComponent([wine.name, wine.producer, wine.vintage].filter(Boolean).join(' '))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+            >
               <div className="text-center">
                 <div className="text-3xl font-bold text-burgundy">{community.avg.toFixed(1)}</div>
                 <div className="text-[11px] text-stone-400 mt-0.5">/ 5.0</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-stone-700">Community Rating</div>
-                <div className="text-xs text-stone-400">{community.ratings?.toLocaleString()} ratings</div>
+                <div className="text-sm font-medium text-stone-700 flex items-center gap-1">Community Rating <ExternalLink size={12} className="text-stone-400" /></div>
+                <div className="text-xs text-stone-400">{community.ratings ? `${community.ratings.toLocaleString()} ratings` : 'View on Vivino'}</div>
               </div>
-            </div>
+            </a>
           )}
           {percentile && (
-            <div className="ml-auto text-right">
+            <a
+              href={`https://www.wine-searcher.com/find/${encodeURIComponent([wine.name, wine.producer, wine.vintage].filter(Boolean).join(' '))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto text-right hover:opacity-80 transition-opacity cursor-pointer"
+            >
               <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/50 rounded-full">
                 <span className="text-sm font-bold text-amber-700">Top {percentile.pct}%</span>
+                <ExternalLink size={12} className="text-amber-500" />
               </div>
               <div className="text-[11px] text-stone-400 mt-1">{percentile.label}</div>
-            </div>
+            </a>
           )}
         </div>
       )}
@@ -749,34 +770,41 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
         <div>
           <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-2">Professional Scores</div>
           <div className="space-y-2">
-            {critics.map((c, i) => (
-              <div key={i} className="flex items-center justify-between py-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-stone-700">{c.source}</span>
-                  {c.vintage && (
-                    <span className="text-[11px] text-stone-400">({c.vintage})</span>
-                  )}
-                  {c.note && (
-                    <span className="text-[11px] text-stone-400 italic">{c.note}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-sm font-bold ${
-                    (c.maxScore ? (c.score / c.maxScore * 100) : c.score) >= 95 ? 'text-green-700' :
-                    (c.maxScore ? (c.score / c.maxScore * 100) : c.score) >= 90 ? 'text-emerald-600' :
-                    'text-stone-700'
-                  }`}>
-                    {c.score}{c.maxScore ? `/${c.maxScore}` : ''}
-                  </span>
-                  {!c.maxScore && c.score >= 95 && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded-full font-medium">Outstanding</span>
-                  )}
-                  {!c.maxScore && c.score >= 90 && c.score < 95 && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium">Excellent</span>
-                  )}
-                </div>
-              </div>
-            ))}
+            {critics.map((c, i) => {
+              const searchQuery = encodeURIComponent([wine.name, wine.producer, wine.vintage].filter(Boolean).join(' '));
+              const criticUrl = getCriticSearchUrl(c.source, searchQuery);
+              const ScoreRow = criticUrl ? 'a' : 'div';
+              const linkProps = criticUrl ? { href: criticUrl, target: '_blank', rel: 'noopener noreferrer' } : {};
+              return (
+                <ScoreRow key={i} {...linkProps} className={`flex items-center justify-between py-1.5 ${criticUrl ? 'hover:bg-stone-50 -mx-2 px-2 rounded-lg transition-colors cursor-pointer' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-stone-700">{c.source}</span>
+                    {c.vintage && (
+                      <span className="text-[11px] text-stone-400">({c.vintage})</span>
+                    )}
+                    {c.note && (
+                      <span className="text-[11px] text-stone-400 italic">{c.note}</span>
+                    )}
+                    {criticUrl && <ExternalLink size={11} className="text-stone-300" />}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-sm font-bold ${
+                      (c.maxScore ? (c.score / c.maxScore * 100) : c.score) >= 95 ? 'text-green-700' :
+                      (c.maxScore ? (c.score / c.maxScore * 100) : c.score) >= 90 ? 'text-emerald-600' :
+                      'text-stone-700'
+                    }`}>
+                      {c.score}{c.maxScore ? `/${c.maxScore}` : ''}
+                    </span>
+                    {!c.maxScore && c.score >= 95 && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded-full font-medium">Outstanding</span>
+                    )}
+                    {!c.maxScore && c.score >= 90 && c.score < 95 && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium">Excellent</span>
+                    )}
+                  </div>
+                </ScoreRow>
+              );
+            })}
           </div>
           {avgCriticScore && (
             <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
