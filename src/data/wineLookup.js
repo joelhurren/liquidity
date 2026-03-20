@@ -126,10 +126,12 @@ export async function scanWineLabel(imageDataUrl) {
  *            classification, alcoholPercent, foodPairings, tastingNotes,
  *            drinkFrom, drinkTo }
  */
-export async function lookupWineData(wine) {
+export async function lookupWineData(wine, { skipCache = false } = {}) {
   const cacheKey = buildCacheKey(wine);
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
+  if (!skipCache) {
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+  }
 
   if (!supabase) {
     return { foodPairings: [], tastingNotes: '', source: 'offline' };

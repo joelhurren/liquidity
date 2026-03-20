@@ -283,7 +283,7 @@ export default function WineDetail() {
         <WineScoresCard wine={wine} onFetchScores={async () => {
           setLookupLoading(true);
           try {
-            const data = await lookupWineData(wine);
+            const data = await lookupWineData(wine, { skipCache: true });
             const updates = {};
             if (data.criticScores?.length) updates.criticScores = data.criticScores;
             if (data.communityScore) updates.communityScore = data.communityScore;
@@ -718,14 +718,14 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
         <h3 className="font-semibold text-stone-700 flex items-center gap-2">
           <Tag size={18} /> Ratings & Scores
         </h3>
-        {hasNoScores && onFetchScores && (
+        {onFetchScores && (
           <button
             onClick={onFetchScores}
             disabled={lookupLoading}
             className="text-sm text-grape-600 hover:text-grape-800 flex items-center gap-1"
           >
             {lookupLoading ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
-            Fetch Scores
+            {hasNoScores ? 'Fetch Scores' : 'Refresh'}
           </button>
         )}
       </div>
