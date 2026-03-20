@@ -113,7 +113,9 @@ export async function scanWineLabel(imageDataUrl) {
     drinkTo: data.drinkTo || null,
     criticScores: data.criticScores || [],
     communityScore: data.communityScore || null,
+    communityRatings: data.communityRatings || null,
     qualityPercentile: data.qualityPercentile || null,
+    vivinoUrl: data.vivinoUrl || null,
     source: 'ai-vision',
   };
 }
@@ -164,7 +166,9 @@ export async function lookupWineData(wine) {
     drinkTo: data.drinkTo || null,
     criticScores: data.criticScores || [],
     communityScore: data.communityScore || null,
+    communityRatings: data.communityRatings || null,
     qualityPercentile: data.qualityPercentile || null,
+    vivinoUrl: data.vivinoUrl || null,
     source: 'ai',
   };
 

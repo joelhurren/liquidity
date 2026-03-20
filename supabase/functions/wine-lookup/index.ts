@@ -2,6 +2,110 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
+// Vivino rating-to-percentile mapping (based on Vivino's published benchmarks)
+function vivinoPercentile(rating: number): number {
+  if (rating >= 4.5) return 99;
+  if (rating >= 4.3) return 97;
+  if (rating >= 4.1) return 94;
+  if (rating >= 4.0) return 91;
+  if (rating >= 3.9) return 87;
+  if (rating >= 3.8) return 82;
+  if (rating >= 3.7) return 76;
+  if (rating >= 3.6) return 69;
+  if (rating >= 3.5) return 61;
+  if (rating >= 3.4) return 52;
+  if (rating >= 3.3) return 43;
+  if (rating >= 3.2) return 34;
+  if (rating >= 3.0) return 22;
+  return 10;
+}
+
+async function searchVivino(wineName: string, vintage?: number | null): Promise<{ communityScore: number; ratings: number; qualityPercentile: number; vivinoUrl: string } | null> {
+  try {
+    const query = [wineName, vintage].filter(Boolean).join(" ");
+    const url = `https://www.vivino.com/search/wines?q=${encodeURIComponent(query)}`;
+
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+
+    if (!res.ok) {
+      console.error("Vivino search failed:", res.status);
+      return null;
+    }
+
+    const html = await res.text();
+
+    // Extract wine card data from the search results HTML
+    // Vivino embeds rating data in their wine cards
+    // Look for the average rating pattern: class="average__number" or similar
+    const ratingMatch = html.match(/average__number[^>]*>(\d+\.?\d*)/);
+    const ratingsCountMatch = html.match(/average__stars[^}]*?(\d[\d,]*)\s*ratings/i)
+      || html.match(/(\d[\d,]*)\s*ratings/i);
+
+    // Try JSON-LD or embedded data
+    const jsonLdMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/);
+
+    // Try the Vivino explore API as fallback
+    if (!ratingMatch) {
+      const apiUrl = `https://www.vivino.com/api/explore/explore?q=${encodeURIComponent(query)}&page=1&per_page=1`;
+      const apiRes = await fetch(apiUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json",
+        },
+      });
+
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        const matches = apiData?.explore_vintage?.matches;
+        if (matches?.length > 0) {
+          const topMatch = matches[0].vintage?.wine || matches[0].wine;
+          const vintageData = matches[0].vintage;
+          const rating = vintageData?.statistics?.ratings_average
+            || topMatch?.statistics?.ratings_average
+            || topMatch?.ratings_average;
+          const count = vintageData?.statistics?.ratings_count
+            || topMatch?.statistics?.ratings_count
+            || topMatch?.ratings_count;
+          const wineId = topMatch?.id;
+          const slug = topMatch?.seo_name;
+
+          if (rating) {
+            const score = parseFloat(rating);
+            return {
+              communityScore: Math.round(score * 10) / 10,
+              ratings: parseInt(count) || 0,
+              qualityPercentile: vivinoPercentile(score),
+              vivinoUrl: slug ? `https://www.vivino.com/w/${wineId}` : url,
+            };
+          }
+        }
+      }
+
+      console.log("Vivino: no rating found in HTML or API");
+      return null;
+    }
+
+    const rating = parseFloat(ratingMatch[1]);
+    const ratingsCount = ratingsCountMatch ? parseInt(ratingsCountMatch[1].replace(/,/g, "")) : 0;
+
+    return {
+      communityScore: Math.round(rating * 10) / 10,
+      ratings: ratingsCount,
+      qualityPercentile: vivinoPercentile(rating),
+      vivinoUrl: url,
+    };
+  } catch (err) {
+    console.error("Vivino search error:", err);
+    return null;
+  }
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -117,6 +221,18 @@ Return ONLY valid JSON, no other text.`,
       }
 
       const wineData = JSON.parse(jsonMatch[0]);
+
+      // Enrich with real Vivino data if we got a wine name
+      if (wineData.name) {
+        const vivino = await searchVivino(wineData.name, wineData.vintage);
+        if (vivino) {
+          wineData.communityScore = vivino.communityScore;
+          wineData.communityRatings = vivino.ratings;
+          wineData.qualityPercentile = vivino.qualityPercentile;
+          wineData.vivinoUrl = vivino.vivinoUrl;
+        }
+      }
+
       return new Response(JSON.stringify(wineData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -187,6 +303,15 @@ Return ONLY valid JSON, no other text.`,
     }
 
     const wineData = JSON.parse(jsonMatch[0]);
+
+    // Enrich with real Vivino data
+    const vivino = await searchVivino(name, vintage);
+    if (vivino) {
+      wineData.communityScore = vivino.communityScore;
+      wineData.communityRatings = vivino.ratings;
+      wineData.qualityPercentile = vivino.qualityPercentile;
+      wineData.vivinoUrl = vivino.vivinoUrl;
+    }
 
     return new Response(JSON.stringify(wineData), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

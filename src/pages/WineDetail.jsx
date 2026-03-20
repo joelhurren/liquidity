@@ -287,7 +287,9 @@ export default function WineDetail() {
             const updates = {};
             if (data.criticScores?.length) updates.criticScores = data.criticScores;
             if (data.communityScore) updates.communityScore = data.communityScore;
+            if (data.communityRatings) updates.communityRatings = data.communityRatings;
             if (data.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
+            if (data.vivinoUrl) updates.vivinoUrl = data.vivinoUrl;
             if (data.drinkFrom && !wine.drinkFrom) updates.drinkFrom = data.drinkFrom;
             if (data.drinkTo && !wine.drinkTo) updates.drinkTo = data.drinkTo;
             if (Object.keys(updates).length) {
@@ -315,7 +317,9 @@ export default function WineDetail() {
                     if (data.drinkTo) updates.drinkTo = data.drinkTo;
                     if (data.criticScores?.length && !wine.criticScores?.length) updates.criticScores = data.criticScores;
                     if (data.communityScore && !wine.communityScore) updates.communityScore = data.communityScore;
+                    if (data.communityRatings && !wine.communityRatings) updates.communityRatings = data.communityRatings;
                     if (data.qualityPercentile && !wine.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
+                    if (data.vivinoUrl && !wine.vivinoUrl) updates.vivinoUrl = data.vivinoUrl;
                     if (Object.keys(updates).length) {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
@@ -361,7 +365,9 @@ export default function WineDetail() {
                     if (data.drinkTo && !wine.drinkFrom) updates.drinkTo = data.drinkTo;
                     if (data.criticScores?.length && !wine.criticScores?.length) updates.criticScores = data.criticScores;
                     if (data.communityScore && !wine.communityScore) updates.communityScore = data.communityScore;
+                    if (data.communityRatings && !wine.communityRatings) updates.communityRatings = data.communityRatings;
                     if (data.qualityPercentile && !wine.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
+                    if (data.vivinoUrl && !wine.vivinoUrl) updates.vivinoUrl = data.vivinoUrl;
                     if (Object.keys(updates).length) {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
@@ -407,7 +413,9 @@ export default function WineDetail() {
                     if (data.drinkTo && !wine.drinkFrom) updates.drinkTo = data.drinkTo;
                     if (data.criticScores?.length && !wine.criticScores?.length) updates.criticScores = data.criticScores;
                     if (data.communityScore && !wine.communityScore) updates.communityScore = data.communityScore;
+                    if (data.communityRatings && !wine.communityRatings) updates.communityRatings = data.communityRatings;
                     if (data.qualityPercentile && !wine.qualityPercentile) updates.qualityPercentile = data.qualityPercentile;
+                    if (data.vivinoUrl && !wine.vivinoUrl) updates.vivinoUrl = data.vivinoUrl;
                     if (Object.keys(updates).length) {
                       const updated = await updateWine(wine.id, updates);
                       if (updated) setWine(updated);
@@ -687,10 +695,11 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
 
   // Build scores from static DB or from AI-provided data on the wine record
   const aiCritics = wine.criticScores || [];
-  const aiCommunity = wine.communityScore ? { avg: wine.communityScore, ratings: null } : null;
+  const aiCommunity = wine.communityScore ? { avg: wine.communityScore, ratings: wine.communityRatings || null } : null;
   const aiPercentile = wine.qualityPercentile
     ? { pct: 100 - wine.qualityPercentile, label: `Top ${100 - wine.qualityPercentile}% of all wines` }
     : null;
+  const vivinoUrl = wine.vivinoUrl || `https://www.vivino.com/search/wines?q=${encodeURIComponent([wine.name, wine.producer, wine.vintage].filter(Boolean).join(' '))}`;
 
   const community = staticScores?.community || aiCommunity;
   const critics = staticScores?.critics || aiCritics;
@@ -733,7 +742,7 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
         <div className="flex items-center gap-4 mb-4 pb-4 border-b border-stone-100">
           {community && (
             <a
-              href={`https://www.vivino.com/search/wines?q=${encodeURIComponent([wine.name, wine.producer, wine.vintage].filter(Boolean).join(' '))}`}
+              href={vivinoUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
@@ -744,7 +753,7 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
               </div>
               <div>
                 <div className="text-sm font-medium text-stone-700 flex items-center gap-1">Community Rating <ExternalLink size={12} className="text-stone-400" /></div>
-                <div className="text-xs text-stone-400">{community.ratings ? `${community.ratings.toLocaleString()} ratings` : 'View on Vivino'}</div>
+                <div className="text-xs text-stone-400">{community.ratings ? `${community.ratings.toLocaleString()} ratings on Vivino` : 'View on Vivino'}</div>
               </div>
             </a>
           )}
