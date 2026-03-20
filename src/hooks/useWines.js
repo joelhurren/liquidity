@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
+import { uploadWineImage, isBase64Image, deleteWineImage } from '../lib/imageStorage';
 
 // ─── localStorage helpers (offline fallback) ───
 const STORAGE_KEY = 'wine-cellar-data';
@@ -104,9 +105,11 @@ export function useWines() {
     }
 
     try {
+      // Exclude image_data from list query — it's large base64 and only needed on detail page
+      const LIST_COLUMNS = 'id,created_at,updated_at,name,producer,vintage,region,country,appellation,grape_varieties,type,color,bottles,purchase_price,purchase_date,purchase_location,drink_from,drink_to,rating,reviews,tasting_notes,food_pairings,alcohol_percent,classification,storage_location,critic_scores,community_score,community_ratings,quality_percentile,vivino_url';
       const { data, error } = await supabase
         .from('wines')
-        .select('*')
+        .select(LIST_COLUMNS)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -142,13 +145,27 @@ export function useWines() {
       return newWine;
     }
 
+    const base64Image = isBase64Image(wine.imageData) ? wine.imageData : null;
+    const snakeData = { ...toSnake(wine), user_id: user.id };
+    if (base64Image) snakeData.image_data = null; // don't store base64 in DB
+
     const { data, error } = await supabase
       .from('wines')
-      .insert({ ...toSnake(wine), user_id: user.id })
+      .insert(snakeData)
       .select()
       .single();
 
     if (error) throw error;
+
+    // Upload image to storage using the real wine ID
+    if (base64Image) {
+      const imageUrl = await uploadWineImage(base64Image, data.id);
+      if (imageUrl) {
+        await supabase.from('wines').update({ image_data: imageUrl }).eq('id', data.id);
+        data.image_data = imageUrl;
+      }
+    }
+
     const camel = toCamel(data);
     setWines(prev => [camel, ...prev]);
     return camel;
@@ -183,6 +200,12 @@ export function useWines() {
       if (fieldMap[key]) snakeUpdates[fieldMap[key]] = val;
     }
 
+    // Upload image to storage if it's base64
+    if (isBase64Image(snakeUpdates.image_data)) {
+      const imageUrl = await uploadWineImage(snakeUpdates.image_data, id);
+      snakeUpdates.image_data = imageUrl || snakeUpdates.image_data;
+    }
+
     const { data, error } = await supabase
       .from('wines')
       .update(snakeUpdates)
@@ -211,15 +234,17 @@ export function useWines() {
       .eq('id', id);
 
     if (error) throw error;
+    deleteWineImage(id); // fire-and-forget cleanup
     setWines(prev => prev.filter(w => w.id !== id));
   }, [user, isOfflineMode]);
 
-  // Get single wine
+  // Get single wine (full data including imageData)
   const getWine = useCallback(async (id) => {
     if (isOfflineMode || !supabase || !user) {
       return loadLocal().find(w => w.id === id) || null;
     }
 
+    // Fetch full row (including image_data) for the detail page
     const { data, error } = await supabase
       .from('wines')
       .select('*')
@@ -227,7 +252,10 @@ export function useWines() {
       .single();
 
     if (error) return null;
-    return toCamel(data);
+    const full = toCamel(data);
+    // Update in-memory list with full data so subsequent lookups are instant
+    setWines(prev => prev.map(w => w.id === id ? full : w));
+    return full;
   }, [user, isOfflineMode]);
 
   // Add review to a wine

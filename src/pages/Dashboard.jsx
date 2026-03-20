@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Wine, Search, Filter, ArrowUpDown, Grid3X3, List, Sparkles, LogOut } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
@@ -243,7 +243,7 @@ export default function Dashboard() {
   );
 }
 
-function WineCard({ wine }) {
+const WineCard = memo(function WineCard({ wine }) {
   const currentYear = new Date().getFullYear();
   let windowStatus = null;
   if (wine.drinkFrom && wine.drinkTo) {
@@ -305,9 +305,9 @@ function WineCard({ wine }) {
       </div>
     </Link>
   );
-}
+});
 
-function WineListItem({ wine }) {
+const WineListItem = memo(function WineListItem({ wine }) {
   return (
     <Link
       to={`/wine/${wine.id}`}
@@ -328,4 +328,4 @@ function WineListItem({ wine }) {
       </div>
     </Link>
   );
-}
+});

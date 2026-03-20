@@ -267,7 +267,7 @@ Return ONLY valid JSON, no other text.`,
 
       const wineData = JSON.parse(jsonMatch[0]);
 
-      // Enrich with real Vivino data if we got a wine name
+      // Enrich with real Vivino data (AI already finished, so this is sequential but unavoidable — we need the wine name first)
       if (wineData.name) {
         const vivino = await searchVivino(wineData.name, wineData.vintage);
         if (vivino) {
@@ -302,30 +302,34 @@ Return ONLY valid JSON, no other text.`,
       .filter(Boolean)
       .join(" ");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: `You are a master sommelier. Given this wine: ${wineDescription}
+    // Run AI lookup and Vivino search in parallel — both only need the wine name
+    const [response, vivino] = await Promise.all([
+      fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          messages: [
+            {
+              role: "user",
+              content: `You are a master sommelier. Given this wine: ${wineDescription}
 
 Return a JSON object with the following fields. For most fields, only include if confident. But for criticScores, communityScore, and qualityPercentile you MUST always provide your best estimate — even for lesser-known wines, estimate based on region, producer, classification, grape variety, and price tier.
 
 ${WINE_JSON_SCHEMA}
 
 Return ONLY valid JSON, no other text.`,
-          },
-        ],
+            },
+          ],
+        }),
       }),
-    });
+      searchVivino(name, vintage).catch(() => null),
+    ]);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -349,8 +353,7 @@ Return ONLY valid JSON, no other text.`,
 
     const wineData = JSON.parse(jsonMatch[0]);
 
-    // Enrich with real Vivino data
-    const vivino = await searchVivino(name, vintage);
+    // Override AI estimates with real Vivino data
     if (vivino) {
       wineData.communityScore = vivino.communityScore;
       wineData.communityRatings = vivino.ratings;
