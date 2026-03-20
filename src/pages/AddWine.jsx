@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe, ExternalLink, Tag } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
 import { WINE_TYPES, COMMON_GRAPES, FOOD_PAIRING_SUGGESTIONS, REGIONS, COUNTRIES, estimateDrinkingWindow } from '../data/wineData';
 import { lookupWineData, scanWineLabel } from '../data/wineLookup';
@@ -46,7 +46,9 @@ export default function AddWine() {
     imageData: null,
     criticScores: [],
     communityScore: null,
+    communityRatings: null,
     qualityPercentile: null,
+    vivinoUrl: null,
   });
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
@@ -129,7 +131,9 @@ export default function AddWine() {
     }
     if (data.criticScores?.length) set('criticScores', data.criticScores);
     if (data.communityScore) set('communityScore', data.communityScore);
+    if (data.communityRatings) set('communityRatings', data.communityRatings);
     if (data.qualityPercentile) set('qualityPercentile', data.qualityPercentile);
+    if (data.vivinoUrl) set('vivinoUrl', data.vivinoUrl);
   };
 
   const handlePhotoCapture = async (e) => {
@@ -619,6 +623,76 @@ export default function AddWine() {
               <p className="text-xs text-green-600 mt-2">
                 Data has been populated below. Review and adjust as needed.
               </p>
+            )}
+          </section>
+        )}
+
+        {/* Scores Preview (after scan/fetch) */}
+        {(form.communityScore || form.criticScores.length > 0 || form.qualityPercentile) && (
+          <section className="bg-white rounded-2xl border border-stone-200 p-5">
+            <h2 className="font-semibold text-stone-700 mb-4 flex items-center gap-2">
+              <Tag size={18} /> Ratings & Scores
+            </h2>
+
+            {/* Community Rating + Percentile */}
+            {(form.communityScore || form.qualityPercentile) && (
+              <div className="flex items-center gap-4 mb-4 pb-4 border-b border-stone-100">
+                {form.communityScore && (
+                  <a
+                    href={form.vivinoUrl || `https://www.vivino.com/search/wines?q=${encodeURIComponent([form.name, form.producer, form.vintage].filter(Boolean).join(' '))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+                  >
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-burgundy">{form.communityScore.toFixed ? form.communityScore.toFixed(1) : form.communityScore}</div>
+                      <div className="text-[11px] text-stone-400 mt-0.5">/ 5.0</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-stone-700 flex items-center gap-1">Community Rating <ExternalLink size={12} className="text-stone-400" /></div>
+                      <div className="text-xs text-stone-400">{form.communityRatings ? `${form.communityRatings.toLocaleString()} ratings on Vivino` : 'View on Vivino'}</div>
+                    </div>
+                  </a>
+                )}
+                {form.qualityPercentile && (
+                  <a
+                    href={form.vivinoUrl || `https://www.vivino.com/search/wines?q=${encodeURIComponent([form.name, form.producer, form.vintage].filter(Boolean).join(' '))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto text-right hover:opacity-80 transition-opacity cursor-pointer"
+                  >
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/50 rounded-full">
+                      <span className="text-sm font-bold text-amber-700">Top {100 - form.qualityPercentile}%</span>
+                      <ExternalLink size={12} className="text-amber-500" />
+                    </div>
+                    <div className="text-[11px] text-stone-400 mt-1">Top {100 - form.qualityPercentile}% of all wines</div>
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Professional Scores */}
+            {form.criticScores.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-2">Professional Scores</div>
+                <div className="space-y-2">
+                  {form.criticScores.map((c, i) => (
+                    <div key={i} className="flex items-center justify-between py-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-stone-700">{c.source}</span>
+                        {c.vintage && <span className="text-[11px] text-stone-400">({c.vintage})</span>}
+                      </div>
+                      <span className={`text-sm font-bold ${
+                        (c.maxScore ? (c.score / c.maxScore * 100) : c.score) >= 95 ? 'text-green-700' :
+                        (c.maxScore ? (c.score / c.maxScore * 100) : c.score) >= 90 ? 'text-emerald-600' :
+                        'text-stone-700'
+                      }`}>
+                        {c.score}{c.maxScore ? `/${c.maxScore}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </section>
         )}

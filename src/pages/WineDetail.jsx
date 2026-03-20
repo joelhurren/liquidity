@@ -111,6 +111,13 @@ export default function WineDetail() {
           </div>
           <div className="flex gap-2">
             <Link
+              to="/add"
+              className="p-2 hover:bg-green-50 rounded-lg text-stone-500 hover:text-green-600"
+              title="Add new wine"
+            >
+              <Plus size={18} />
+            </Link>
+            <Link
               to={`/edit/${wine.id}`}
               className="p-2 hover:bg-stone-100 rounded-lg text-stone-500"
             >
