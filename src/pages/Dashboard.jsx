@@ -70,7 +70,10 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const totalBottles = wines.reduce((sum, w) => sum + (w.bottles || 0), 0);
-    const avgRating = wines.filter((w) => w.rating).reduce((sum, w, _, arr) => sum + w.rating / arr.length, 0);
+    const winesWithScore = wines.filter((w) => w.communityScore);
+    const avgRating = winesWithScore.length > 0
+      ? winesWithScore.reduce((sum, w) => sum + w.communityScore, 0) / winesWithScore.length
+      : 0;
     const typeBreakdown = {};
     wines.forEach((w) => {
       typeBreakdown[w.type] = (typeBreakdown[w.type] || 0) + (w.bottles || 0);
@@ -151,7 +154,7 @@ export default function Dashboard() {
               <div className="text-2xl font-bold">
                 {stats.avgRating ? stats.avgRating.toFixed(1) : '—'}
               </div>
-              <div className="text-sm text-white/70">Avg Rating</div>
+              <div className="text-sm text-white/70">Avg Vivino</div>
             </div>
           </div>
         </div>
