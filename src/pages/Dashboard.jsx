@@ -313,7 +313,7 @@ const WineCard = memo(function WineCard({ wine }) {
       {/* Image or bottle illustration */}
       <div className="h-48 bg-gradient-to-br from-stone-100 to-stone-50 flex items-center justify-center relative overflow-hidden">
         {wine.imageData ? (
-          <img src={wine.imageData} alt={wine.name} className="w-full h-full object-cover" />
+          <img src={wine.imageData} alt={wine.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <WineBottle type={wine.type} size={50} className="group-hover:scale-105 transition-transform" />
         )}

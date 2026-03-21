@@ -5,6 +5,7 @@ import { useWines } from '../hooks/useWines';
 import { WINE_TYPES, COMMON_GRAPES, FOOD_PAIRING_SUGGESTIONS, REGIONS, COUNTRIES, estimateDrinkingWindow } from '../data/wineData';
 import { lookupWineData, scanWineLabel } from '../data/wineLookup';
 import { searchKnownWines } from '../data/knownWines';
+import { compressImage } from '../lib/imageCompress';
 import StarRating from '../components/StarRating';
 
 export default function AddWine() {
@@ -141,14 +142,17 @@ export default function AddWine() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const dataUrl = ev.target.result;
-      set('imageData', dataUrl);
+      const rawDataUrl = ev.target.result;
 
-      // Auto-scan the label with AI vision
+      // Compress image for storage (800px wide, 70% quality ≈ 50KB instead of 3MB)
+      const compressed = await compressImage(rawDataUrl, 800, 0.7);
+      set('imageData', compressed);
+
+      // Auto-scan the label with AI vision (use raw for better OCR accuracy)
       setScanning(true);
       setScanError(null);
       try {
-        const data = await scanWineLabel(dataUrl);
+        const data = await scanWineLabel(rawDataUrl);
         applyAIData(data);
         setLookupDone(true);
       } catch (err) {
