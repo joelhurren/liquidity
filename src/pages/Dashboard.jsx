@@ -19,11 +19,11 @@ export default function Dashboard() {
 
   const currentYear = new Date().getFullYear();
 
-  // Wines currently in or past their drinking window, sorted by most urgent
+  // Wines expiring this year (drinkTo == currentYear) — drink before they go past peak
   const drinkNowWines = useMemo(() => {
     return wines.filter(
-      (w) => w.drinkFrom && w.drinkTo && w.drinkFrom <= currentYear && (w.bottles || 0) > 0
-    ).sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0)); // closest to end of window first
+      (w) => w.drinkTo && w.drinkTo <= currentYear && (w.bottles || 0) > 0
+    ).sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0)); // most urgent first
   }, [wines, currentYear]);
 
   const filteredWines = useMemo(() => {
@@ -167,7 +167,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-amber-600" />
               <h2 className="font-semibold text-amber-800">
-                Showing {drinkNowWines.length} wine{drinkNowWines.length !== 1 ? 's' : ''} ready to drink now
+                {drinkNowWines.length} wine{drinkNowWines.length !== 1 ? 's' : ''} expiring in {currentYear} — drink soon!
               </h2>
             </div>
             <button
