@@ -49,27 +49,28 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
     const decoded = html.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
     // Vivino embeds wine data as HTML-entity-encoded JSON in the search page.
-    // Structure: each result has a vintage with stats, then a "wine":{} object,
-    // followed later by wine-level statistics (with higher ratings_count).
+    // Structure: each result has a vintage with stats, then a "wine":{} object
+    // containing a nested "winery":{} object, followed by wine-level statistics.
 
-    // Step 1: Find all wine objects
+    // Step 1: Find all wine objects and extract their winery names
     const winePattern = /"wine":\{"id":(\d+),"name":"([^"]+)","seo_name":"([^"]+)"/g;
-    const wines: Array<{ id: number; name: string; seoName: string; pos: number }> = [];
+    const wines: Array<{ id: number; name: string; seoName: string; pos: number; wineryName: string }> = [];
     let wm;
     while ((wm = winePattern.exec(decoded)) !== null) {
-      wines.push({ id: parseInt(wm[1]), name: wm[2], seoName: wm[3], pos: wm.index });
+      // Extract winery name from the wine block (appears ~1500-2500 chars after wine start)
+      const wineChunk = decoded.slice(wm.index, wm.index + 3000);
+      const wineryMatch = wineChunk.match(/"winery":\{"id":\d+,"name":"([^"]+)"/);
+      const wineryName = wineryMatch ? wineryMatch[1].replace(/&#39;/g, "'") : "";
+      wines.push({ id: parseInt(wm[1]), name: wm[2].replace(/&#39;/g, "'"), seoName: wm[3], pos: wm.index, wineryName });
     }
 
-    // Step 2: For each wine, find the vintage-level statistics (first stats block before the wine object)
-    // The structure is: vintage stats → wine object → wine-level stats
-    // We want the vintage-specific rating (matches the requested vintage)
-    const wineBlocks: Array<{ rating: number; count: number; wineId: number; seoName: string; wineName: string }> = [];
+    // Step 2: For each wine, find ratings and build scored blocks
+    const wineBlocks: Array<{ rating: number; count: number; wineId: number; seoName: string; wineName: string; wineryName: string }> = [];
 
     for (const wine of wines) {
       // Look backwards from the wine position for the vintage stats
       const beforeChunk = decoded.slice(Math.max(0, wine.pos - 3000), wine.pos);
       const statsMatches = [...beforeChunk.matchAll(/"ratings_count":(\d+),"ratings_average":([\d.]+)/g)];
-      // Take the last match (closest to the wine object) — that's the vintage stats
       const vintageStats = statsMatches.length > 0 ? statsMatches[statsMatches.length - 1] : null;
 
       // Also find wine-level stats (after the wine object, higher count)
@@ -84,15 +85,13 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
         }
       }
 
-      // Use vintage stats if they have a rating, otherwise fall back to wine-level
       const vRating = vintageStats ? parseFloat(vintageStats[2]) : 0;
       const vCount = vintageStats ? parseInt(vintageStats[1]) : 0;
-
       const rating = vRating > 0 ? vRating : (wineLevelStats?.rating || 0);
       const count = vRating > 0 ? vCount : (wineLevelStats?.count || 0);
 
       if (rating > 0) {
-        wineBlocks.push({ rating, count, wineId: wine.id, seoName: wine.seoName, wineName: wine.name });
+        wineBlocks.push({ rating, count, wineId: wine.id, seoName: wine.seoName, wineName: wine.name, wineryName: wine.wineryName });
       }
     }
 
@@ -101,35 +100,73 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
       return null;
     }
 
-    // Pick the best matching wine using strict scoring
-    // Include producer + grape in matching — prevents "Buena Vista Cab Sauv" matching "Buena Vista Chardonnay"
-    const fullQuery = [producer, wineName, grapeVariety].filter(Boolean).join(" ");
-    const queryWords = fullQuery.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+    // Step 3: Score each result against the query using winery + wine name matching
+    // The key insight: Vivino stores producer in "winery.name", not in the wine name.
+    // So we must extract and match the winery separately for accurate results.
+    const producerLower = (producer || "").toLowerCase().trim();
+    const wineNameLower = wineName.toLowerCase().trim();
+    const grapeLower = (grapeVariety || "").toLowerCase().trim();
+
+    // Build separate word lists for targeted matching
+    const producerWords = producerLower.split(/\s+/).filter(w => w.length > 1);
+    const wineNameWords = wineNameLower.split(/\s+/).filter(w => w.length > 1);
+    const grapeWords = grapeLower.split(/\s+/).filter(w => w.length > 1);
+
     let best = wineBlocks[0];
     let bestScore = -999;
     for (const block of wineBlocks) {
-      // Check against both the wine name AND the seo_name (which often includes the producer)
-      const nameLower = block.wineName.toLowerCase();
-      const seoLower = block.seoName.toLowerCase().replace(/-/g, ' ');
-      const combinedName = nameLower + ' ' + seoLower;
+      const blockWineryLower = block.wineryName.toLowerCase();
+      const blockWineNameLower = block.wineName.toLowerCase();
+      const blockSeoLower = block.seoName.toLowerCase().replace(/-/g, ' ');
+      // Combined text for general matching
+      const blockFullText = blockWineryLower + ' ' + blockWineNameLower + ' ' + blockSeoLower;
 
-      // Count query words found in the wine name
-      const found = queryWords.filter(w => combinedName.includes(w)).length;
-      // Penalize for query words NOT found (missing words = likely wrong wine)
-      const missing = queryWords.length - found;
-      // Penalize for extra words in the wine name not in our query (prevents overly broad matches)
-      const wineWords = nameLower.split(/\s+/).filter(w => w.length > 1);
-      const extraInWine = wineWords.filter(w => !queryWords.some(q => q.includes(w) || w.includes(q))).length;
+      let score = 0;
 
-      const score = found * 3 - missing * 2 - extraInWine;
+      // Producer/winery match (heavily weighted — wrong producer = wrong wine)
+      if (producerWords.length > 0) {
+        const producerFound = producerWords.filter(w => blockWineryLower.includes(w) || blockSeoLower.includes(w)).length;
+        const producerMissing = producerWords.length - producerFound;
+        score += producerFound * 5;  // Strong reward for producer match
+        score -= producerMissing * 8; // Heavy penalty for wrong producer
+        // Penalize extra words in winery name (e.g. "Valle Buena Vista" vs "Buena Vista")
+        const wineryWords = blockWineryLower.split(/\s+/).filter(w => w.length > 1);
+        const extraInWinery = wineryWords.filter(w => !producerWords.some(q => q.includes(w) || w.includes(q))).length;
+        score -= extraInWinery * 3;
+      }
+
+      // Wine name match (important — distinguishes different wines from same producer)
+      if (wineNameWords.length > 0) {
+        const nameFound = wineNameWords.filter(w => blockFullText.includes(w)).length;
+        const nameMissing = wineNameWords.length - nameFound;
+        score += nameFound * 3;
+        score -= nameMissing * 2;
+      }
+
+      // Grape variety match (helps distinguish Cab Sauv from Chardonnay)
+      if (grapeWords.length > 0) {
+        const grapeFound = grapeWords.filter(w => blockFullText.includes(w)).length;
+        score += grapeFound * 2;
+      }
+
+      // Penalize extra words in wine name not in our query (prevents overly broad matches)
+      const allQueryWords = [...producerWords, ...wineNameWords, ...grapeWords];
+      const blockWineWords = blockWineNameLower.split(/\s+/).filter(w => w.length > 1);
+      const extraInWine = blockWineWords.filter(w => !allQueryWords.some(q => q.includes(w) || w.includes(q))).length;
+      score -= extraInWine;
+
+      // Prefer results with more ratings (more popular = more likely the right wine)
+      if (block.count > 1000) score += 1;
+
+      console.log(`Vivino scoring: "${block.wineryName} ${block.wineName}" score=${score}`);
 
       if (score > bestScore || (score === bestScore && block.count > best.count)) {
         best = block;
         bestScore = score;
       }
     }
-    console.log(`Vivino: best match score=${bestScore} for "${best.wineName}" (seo: ${best.seoName})`);
-    console.log(`Vivino: matched "${best.wineName}" (ID:${best.wineId}) — ${best.rating}/5.0 (${best.count} ratings)`);
+    console.log(`Vivino: best match score=${bestScore} for "${best.wineryName} ${best.wineName}" (ID:${best.wineId})`);
+    console.log(`Vivino: ${best.rating}/5.0 (${best.count} ratings)`);
 
     // Step 3: Fetch the wine detail page to get the real global rank for percentile
     let qualityPercentile = vivinoPercentile(best.rating); // fallback
