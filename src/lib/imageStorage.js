@@ -102,32 +102,50 @@ export async function deleteWineImage(wineId) {
 
 /**
  * Migrate all existing base64 images in the DB to Supabase Storage.
- * Call once from the browser console or a settings page.
- * Updates each wine row to replace base64 with a CDN URL.
+ * Call once from the browser console: await migrateImages()
+ * Processes one wine at a time to avoid timeouts on the free tier.
  */
 export async function migrateImagesToStorage() {
-  if (!supabase) return { migrated: 0, errors: 0 };
+  if (!supabase) return { migrated: 0, errors: 0, skipped: 0 };
 
+  // First get just the IDs (no image data — that would timeout)
   const { data: wines, error } = await supabase
     .from('wines')
-    .select('id, image_data')
+    .select('id')
     .not('image_data', 'is', null);
 
   if (error) {
     console.error('Migration query failed:', error);
-    return { migrated: 0, errors: 1 };
+    return { migrated: 0, errors: 1, skipped: 0 };
   }
+
+  console.log(`Found ${wines.length} wines with images. Processing one at a time...`);
 
   let migrated = 0;
   let errors = 0;
+  let skipped = 0;
 
-  for (const wine of wines) {
-    // Skip if already a URL (not base64)
-    if (!wine.image_data?.startsWith('data:')) {
+  for (const { id } of wines) {
+    // Fetch image_data for this single wine
+    const { data: wine, error: fetchErr } = await supabase
+      .from('wines')
+      .select('id, image_data')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !wine) {
+      console.error(`Failed to fetch wine ${id}:`, fetchErr);
+      errors++;
       continue;
     }
 
-    console.log(`Migrating image for wine ${wine.id}...`);
+    // Skip if already a URL (not base64)
+    if (!wine.image_data?.startsWith('data:')) {
+      skipped++;
+      continue;
+    }
+
+    console.log(`[${migrated + errors + skipped + 1}/${wines.length}] Migrating wine ${id}...`);
     const imageUrl = await uploadWineImage(wine.image_data, wine.id);
     if (imageUrl) {
       const { error: updateErr } = await supabase
@@ -136,18 +154,18 @@ export async function migrateImagesToStorage() {
         .eq('id', wine.id);
 
       if (updateErr) {
-        console.error(`Failed to update wine ${wine.id}:`, updateErr);
+        console.error(`Failed to update wine ${id}:`, updateErr);
         errors++;
       } else {
         migrated++;
-        console.log(`Migrated wine ${wine.id} → ${imageUrl}`);
+        console.log(`  ✓ Migrated → ${imageUrl}`);
       }
     } else {
-      console.error(`Failed to upload image for wine ${wine.id}`);
+      console.error(`  ✗ Failed to upload image for wine ${id}`);
       errors++;
     }
   }
 
-  console.log(`Migration complete: ${migrated} migrated, ${errors} errors`);
-  return { migrated, errors };
+  console.log(`\nMigration complete: ${migrated} migrated, ${skipped} already done, ${errors} errors`);
+  return { migrated, errors, skipped };
 }
