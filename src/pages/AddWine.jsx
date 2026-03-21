@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe, ExternalLink, Tag } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, X, Sparkles, Loader2, Globe, ExternalLink, Tag, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useWines } from '../hooks/useWines';
 import { WINE_TYPES, COMMON_GRAPES, FOOD_PAIRING_SUGGESTIONS, REGIONS, COUNTRIES, estimateDrinkingWindow } from '../data/wineData';
 import { lookupWineData, scanWineLabel } from '../data/wineLookup';
@@ -10,7 +11,7 @@ import StarRating from '../components/StarRating';
 
 export default function AddWine() {
   const navigate = useNavigate();
-  const { addWine } = useWines();
+  const { addWine, wines } = useWines();
   const fileInputRef = useRef(null);
   const [grapeInput, setGrapeInput] = useState('');
   const [pairingInput, setPairingInput] = useState('');
@@ -22,6 +23,8 @@ export default function AddWine() {
   const [submitError, setSubmitError] = useState(null);
   const [wineSuggestions, setWineSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [duplicateWines, setDuplicateWines] = useState([]);
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -81,6 +84,11 @@ export default function AddWine() {
     const results = searchKnownWines(value);
     setWineSuggestions(results);
     setShowSuggestions(results.length > 0 && value.length >= 2);
+    if (value.length >= 3) {
+      checkForDuplicates(value, form.producer, form.vintage);
+    } else {
+      setDuplicateWines([]);
+    }
   };
 
   const applyWineSuggestion = (wine) => {
@@ -96,6 +104,7 @@ export default function AddWine() {
     if (wine.producer) set('producer', wine.producer);
     setShowSuggestions(false);
     setWineSuggestions([]);
+    checkForDuplicates(wine.name, wine.producer, form.vintage);
   };
 
   const autoEstimateWindow = () => {
@@ -103,6 +112,31 @@ export default function AddWine() {
     if (window) {
       set('drinkFrom', window.from.toString());
       setTimeout(() => set('drinkTo', window.to.toString()), 0);
+    }
+  };
+
+  const checkForDuplicates = (name, producer, vintage) => {
+    if (!name) return;
+    const nameLower = name.toLowerCase().trim();
+    const producerLower = (producer || '').toLowerCase().trim();
+    const vintageNum = vintage ? parseInt(vintage) : null;
+
+    const matches = wines.filter((w) => {
+      const nameMatch = w.name.toLowerCase().trim() === nameLower ||
+        nameLower.includes(w.name.toLowerCase().trim()) ||
+        w.name.toLowerCase().trim().includes(nameLower);
+      const producerMatch = !producerLower || !w.producer ||
+        w.producer.toLowerCase().trim().includes(producerLower) ||
+        producerLower.includes(w.producer.toLowerCase().trim());
+      const vintageMatch = !vintageNum || !w.vintage || w.vintage === vintageNum;
+      return nameMatch && producerMatch && vintageMatch;
+    });
+
+    if (matches.length > 0) {
+      setDuplicateWines(matches);
+      setDuplicateDismissed(false);
+    } else {
+      setDuplicateWines([]);
     }
   };
 
@@ -154,6 +188,7 @@ export default function AddWine() {
       try {
         const data = await scanWineLabel(rawDataUrl);
         applyAIData(data);
+        checkForDuplicates(data.name, data.producer, data.vintage);
         setLookupDone(true);
       } catch (err) {
         console.error('Label scan error:', err);
@@ -323,6 +358,44 @@ export default function AddWine() {
                       </span>
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* Duplicate warning */}
+              {duplicateWines.length > 0 && !duplicateDismissed && (
+                <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-800">
+                        Possible duplicate{duplicateWines.length > 1 ? 's' : ''} found in your collection:
+                      </p>
+                      <div className="mt-2 space-y-1.5">
+                        {duplicateWines.map((w) => (
+                          <Link
+                            key={w.id}
+                            to={`/wine/${w.id}`}
+                            className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-200 hover:bg-amber-50 transition-colors"
+                          >
+                            <div>
+                              <span className="text-sm font-medium text-stone-800">{w.name}</span>
+                              <span className="text-xs text-stone-500 ml-2">
+                                {[w.producer, w.vintage, `${w.bottles} btl`].filter(Boolean).join(' · ')}
+                              </span>
+                            </div>
+                            <span className="text-xs text-amber-600 font-medium">View →</span>
+                          </Link>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDuplicateDismissed(true)}
+                        className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium"
+                      >
+                        Not a duplicate — continue adding
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
