@@ -15,14 +15,15 @@ export default function Dashboard() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
+  const [showDrinkNow, setShowDrinkNow] = useState(false);
 
   const currentYear = new Date().getFullYear();
 
-  // Wines whose drinking window ends this year or has already passed — drink soon!
-  const drinkThisYear = useMemo(() => {
+  // Wines currently in or past their drinking window, sorted by most urgent
+  const drinkNowWines = useMemo(() => {
     return wines.filter(
-      (w) => w.drinkTo && w.drinkTo <= currentYear && (w.bottles || 0) > 0
-    ).sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0)); // most urgent first
+      (w) => w.drinkFrom && w.drinkTo && w.drinkFrom <= currentYear && (w.bottles || 0) > 0
+    ).sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0)); // closest to end of window first
   }, [wines, currentYear]);
 
   const filteredWines = useMemo(() => {
@@ -109,7 +110,7 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <div className="flex gap-2 sm:gap-3 mb-6">
+          <div className="flex gap-2 sm:gap-3 mb-6 flex-wrap">
             <Link
               to="/add"
               className="flex-1 sm:flex-none bg-white text-burgundy px-4 sm:px-5 py-2.5 rounded-xl font-semibold hover:bg-white/90 transition-colors flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base"
@@ -122,6 +123,19 @@ export default function Dashboard() {
             >
               <Sparkles size={18} /> Tonight's Pick
             </Link>
+            {drinkNowWines.length > 0 && (
+              <button
+                onClick={() => setShowDrinkNow(!showDrinkNow)}
+                className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base ${
+                  showDrinkNow
+                    ? 'bg-amber-400 text-amber-900 shadow-lg'
+                    : 'bg-white/15 backdrop-blur text-white hover:bg-white/25 border border-white/20'
+                }`}
+              >
+                <Clock size={18} /> Drink in {currentYear}
+                <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-full">{drinkNowWines.length}</span>
+              </button>
+            )}
           </div>
 
           {/* Stats bar */}
@@ -150,39 +164,22 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Drink This Year Banner */}
-      {drinkThisYear.length > 0 && (
+      {/* Drink Now filtered view banner */}
+      {showDrinkNow && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <Clock size={18} className="text-amber-600" />
               <h2 className="font-semibold text-amber-800">
-                Drink Soon
+                Showing {drinkNowWines.length} wine{drinkNowWines.length !== 1 ? 's' : ''} ready to drink now
               </h2>
-              <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">
-                {drinkThisYear.length} wine{drinkThisYear.length !== 1 ? 's' : ''}
-              </span>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
-              {drinkThisYear.map((wine) => (
-                <Link
-                  key={wine.id}
-                  to={`/wine/${wine.id}`}
-                  className="flex items-center gap-3 bg-white rounded-xl border border-amber-200 px-4 py-3 hover:shadow-md transition-all shrink-0 min-w-[200px] max-w-[280px]"
-                >
-                  <WineTypeIcon type={wine.type} />
-                  <div className="min-w-0">
-                    <div className="font-medium text-stone-800 text-sm truncate">{wine.name}</div>
-                    <div className="text-xs text-amber-600">
-                      {wine.drinkTo < currentYear
-                        ? `Past peak (${wine.drinkTo})`
-                        : `Drink by end of ${currentYear}`}
-                      {' · '}{wine.bottles} btl{wine.bottles !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <button
+              onClick={() => setShowDrinkNow(false)}
+              className="text-sm text-amber-700 hover:text-amber-900 font-medium"
+            >
+              Show All
+            </button>
           </div>
         </div>
       )}
@@ -251,7 +248,9 @@ export default function Dashboard() {
 
       {/* Wine grid */}
       <div className="max-w-7xl mx-auto px-4 pb-8">
-        {filteredWines.length === 0 ? (
+        {(() => {
+          const displayWines = showDrinkNow ? drinkNowWines : filteredWines;
+          return displayWines.length === 0 ? (
           <div className="text-center py-16">
             {wines.length === 0 ? (
               <>
@@ -278,17 +277,18 @@ export default function Dashboard() {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredWines.map((wine) => (
+            {displayWines.map((wine) => (
               <WineCard key={wine.id} wine={wine} />
             ))}
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredWines.map((wine) => (
+            {displayWines.map((wine) => (
               <WineListItem key={wine.id} wine={wine} />
             ))}
           </div>
-        )}
+        );
+        })()}
       </div>
     </div>
   );
