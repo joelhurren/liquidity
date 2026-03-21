@@ -70,13 +70,12 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const totalBottles = wines.reduce((sum, w) => sum + (w.bottles || 0), 0);
-    const totalValue = wines.reduce((sum, w) => sum + (w.purchasePrice || 0) * (w.bottles || 0), 0);
     const avgRating = wines.filter((w) => w.rating).reduce((sum, w, _, arr) => sum + w.rating / arr.length, 0);
     const typeBreakdown = {};
     wines.forEach((w) => {
       typeBreakdown[w.type] = (typeBreakdown[w.type] || 0) + (w.bottles || 0);
     });
-    return { totalBottles, totalValue, avgRating, uniqueWines: wines.length, typeBreakdown };
+    return { totalBottles, avgRating, uniqueWines: wines.length, typeBreakdown };
   }, [wines]);
 
   if (loading) {
@@ -139,7 +138,7 @@ export default function Dashboard() {
           </div>
 
           {/* Stats bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="bg-white/10 backdrop-blur rounded-xl p-4">
               <div className="text-2xl font-bold">{stats.totalBottles}</div>
               <div className="text-sm text-white/70">Total Bottles</div>
@@ -153,12 +152,6 @@ export default function Dashboard() {
                 {stats.avgRating ? stats.avgRating.toFixed(1) : '—'}
               </div>
               <div className="text-sm text-white/70">Avg Rating</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <div className="text-2xl font-bold">
-                {stats.totalValue ? `$${stats.totalValue.toLocaleString()}` : '—'}
-              </div>
-              <div className="text-sm text-white/70">Est. Value</div>
             </div>
           </div>
         </div>
