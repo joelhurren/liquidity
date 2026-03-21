@@ -19,10 +19,10 @@ export default function Dashboard() {
 
   const currentYear = new Date().getFullYear();
 
-  // Wines expiring this year (drinkTo == currentYear) — drink before they go past peak
-  const drinkNowWines = useMemo(() => {
+  // Wines expiring soon (drinkTo within next 2 years) — drink before they go past peak
+  const drinkSoonWines = useMemo(() => {
     return wines.filter(
-      (w) => w.drinkTo && w.drinkTo <= currentYear && (w.bottles || 0) > 0
+      (w) => w.drinkTo && w.drinkTo <= currentYear + 2 && (w.bottles || 0) > 0
     ).sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0)); // most urgent first
   }, [wines, currentYear]);
 
@@ -125,7 +125,7 @@ export default function Dashboard() {
             >
               <Sparkles size={18} /> Tonight's Pick
             </Link>
-            {drinkNowWines.length > 0 && (
+            {drinkSoonWines.length > 0 && (
               <button
                 onClick={() => setShowDrinkNow(!showDrinkNow)}
                 className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base ${
@@ -134,8 +134,8 @@ export default function Dashboard() {
                     : 'bg-white/15 backdrop-blur text-white hover:bg-white/25 border border-white/20'
                 }`}
               >
-                <Clock size={18} /> Drink in {currentYear}
-                <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-full">{drinkNowWines.length}</span>
+                <Clock size={18} /> Drink Soon
+                <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-full">{drinkSoonWines.length}</span>
               </button>
             )}
           </div>
@@ -167,7 +167,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-amber-600" />
               <h2 className="font-semibold text-amber-800">
-                {drinkNowWines.length} wine{drinkNowWines.length !== 1 ? 's' : ''} expiring in {currentYear} — drink soon!
+                {drinkSoonWines.length} wine{drinkSoonWines.length !== 1 ? 's' : ''} expiring by {currentYear + 2} — drink soon!
               </h2>
             </div>
             <button
@@ -245,7 +245,7 @@ export default function Dashboard() {
       {/* Wine grid */}
       <div className="max-w-7xl mx-auto px-4 pb-8">
         {(() => {
-          const displayWines = showDrinkNow ? drinkNowWines : filteredWines;
+          const displayWines = showDrinkNow ? drinkSoonWines : filteredWines;
           return displayWines.length === 0 ? (
           <div className="text-center py-16">
             {wines.length === 0 ? (
