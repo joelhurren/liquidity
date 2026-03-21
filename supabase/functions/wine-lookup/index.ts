@@ -23,12 +23,13 @@ function vivinoPercentile(rating: number): number {
   return 10;
 }
 
-async function searchVivino(wineName: string, producer?: string | null, vintage?: number | null): Promise<{ communityScore: number; ratings: number; qualityPercentile: number; vivinoUrl: string } | null> {
+async function searchVivino(wineName: string, producer?: string | null, vintage?: number | null, grapeVariety?: string | null): Promise<{ communityScore: number; ratings: number; qualityPercentile: number; vivinoUrl: string } | null> {
   const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
   try {
-    // Include producer in search for much better matching
-    const query = [producer, wineName, vintage].filter(Boolean).join(" ");
+    // Include producer and primary grape for best matching
+    // e.g. "Buena Vista Chateau Buena Vista Cabernet Sauvignon 2016"
+    const query = [producer, wineName, grapeVariety, vintage].filter(Boolean).join(" ");
     const searchUrl = `https://www.vivino.com/search/wines?q=${encodeURIComponent(query)}`;
 
     const res = await fetch(searchUrl, {
@@ -101,8 +102,8 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
     }
 
     // Pick the best matching wine using strict scoring
-    // Include producer in matching — this prevents "Freemark Abbey Cab Sauv" matching "Caymus Cab Sauv"
-    const fullQuery = [producer, wineName].filter(Boolean).join(" ");
+    // Include producer + grape in matching — prevents "Buena Vista Cab Sauv" matching "Buena Vista Chardonnay"
+    const fullQuery = [producer, wineName, grapeVariety].filter(Boolean).join(" ");
     const queryWords = fullQuery.toLowerCase().split(/\s+/).filter(w => w.length > 1);
     let best = wineBlocks[0];
     let bestScore = -999;
@@ -284,7 +285,8 @@ Return ONLY valid JSON, no other text.`,
 
       // Enrich with real Vivino data (AI already finished, so this is sequential but unavoidable — we need the wine name first)
       if (wineData.name) {
-        const vivino = await searchVivino(wineData.name, wineData.producer, wineData.vintage);
+        const primaryGrape = wineData.grapeVarieties?.[0] || null;
+        const vivino = await searchVivino(wineData.name, wineData.producer, wineData.vintage, primaryGrape);
         if (vivino) {
           wineData.communityScore = vivino.communityScore;
           wineData.communityRatings = vivino.ratings;
@@ -343,7 +345,7 @@ Return ONLY valid JSON, no other text.`,
           ],
         }),
       }),
-      searchVivino(name, producer, vintage).catch(() => null),
+      searchVivino(name, producer, vintage, grapeVarieties?.[0] || null).catch(() => null),
     ]);
 
     if (!response.ok) {
