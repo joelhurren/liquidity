@@ -105,10 +105,10 @@ export function useWines() {
     }
 
     try {
-      // Exclude image_data until base64→CDN migration is complete (base64 blobs cause timeouts)
+      // image_data now contains CDN URLs (not base64) after migration
       const { data, error } = await supabase
         .from('wines')
-        .select('id,created_at,updated_at,name,producer,vintage,region,country,appellation,grape_varieties,type,color,bottles,purchase_price,purchase_date,purchase_location,drink_from,drink_to,rating,reviews,tasting_notes,food_pairings,alcohol_percent,classification,storage_location,critic_scores,community_score,community_ratings,quality_percentile,vivino_url')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
