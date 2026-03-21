@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Wine, Search, Filter, ArrowUpDown, Grid3X3, List, Sparkles, LogOut } from 'lucide-react';
+import { Plus, Wine, Search, Filter, ArrowUpDown, Grid3X3, List, Sparkles, LogOut, Clock, Star } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
 import { useAuth } from '../contexts/AuthContext';
 import { WINE_TYPES } from '../data/wineData';
@@ -16,6 +16,15 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
 
+  const currentYear = new Date().getFullYear();
+
+  // Wines whose drinking window ends this year (drinkTo === currentYear) and still have bottles
+  const drinkThisYear = useMemo(() => {
+    return wines.filter(
+      (w) => w.drinkTo && w.drinkTo === currentYear && (w.bottles || 0) > 0
+    );
+  }, [wines, currentYear]);
+
   const filteredWines = useMemo(() => {
     let result = [...wines];
 
@@ -25,9 +34,14 @@ export default function Dashboard() {
         (w) =>
           w.name.toLowerCase().includes(q) ||
           w.producer.toLowerCase().includes(q) ||
-          w.region.toLowerCase().includes(q) ||
+          (w.region || '').toLowerCase().includes(q) ||
+          (w.country || '').toLowerCase().includes(q) ||
+          (w.appellation || '').toLowerCase().includes(q) ||
+          (w.classification || '').toLowerCase().includes(q) ||
+          (w.type || '').toLowerCase().includes(q) ||
           (w.grapeVarieties || []).some((g) => g.toLowerCase().includes(q)) ||
-          (w.storageLocation || '').toLowerCase().includes(q)
+          (w.storageLocation || '').toLowerCase().includes(q) ||
+          (w.vintage && w.vintage.toString().includes(q))
       );
     }
 
@@ -136,6 +150,40 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* Drink This Year Banner */}
+      {drinkThisYear.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock size={18} className="text-amber-600" />
+              <h2 className="font-semibold text-amber-800">
+                Wines to Drink in {currentYear}
+              </h2>
+              <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">
+                {drinkThisYear.length} wine{drinkThisYear.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+              {drinkThisYear.map((wine) => (
+                <Link
+                  key={wine.id}
+                  to={`/wine/${wine.id}`}
+                  className="flex items-center gap-3 bg-white rounded-xl border border-amber-200 px-4 py-3 hover:shadow-md transition-all shrink-0 min-w-[200px] max-w-[280px]"
+                >
+                  <WineTypeIcon type={wine.type} />
+                  <div className="min-w-0">
+                    <div className="font-medium text-stone-800 text-sm truncate">{wine.name}</div>
+                    <div className="text-xs text-amber-600">
+                      Drink by end of {currentYear} · {wine.bottles} btl{wine.bottles !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters & Search */}
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
@@ -143,7 +191,7 @@ export default function Dashboard() {
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
-              placeholder="Search wines, producers, regions, grapes..."
+              placeholder="Search wines, producers, regions, countries, grapes..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-burgundy/30 focus:border-burgundy"
@@ -252,6 +300,8 @@ const WineCard = memo(function WineCard({ wine }) {
     else windowStatus = { label: 'Ready', color: 'text-green-600 bg-green-50' };
   }
 
+  const percentile = wine.qualityPercentile ? 100 - wine.qualityPercentile : null;
+
   return (
     <Link
       to={`/wine/${wine.id}`}
@@ -272,6 +322,17 @@ const WineCard = memo(function WineCard({ wine }) {
         {wine.bottles === 0 && (
           <span className="absolute top-3 right-3 bg-stone-800/80 text-white text-xs font-semibold px-2 py-1 rounded-full">
             None Left
+          </span>
+        )}
+        {/* Vivino score badge on image */}
+        {wine.communityScore && (
+          <span className="absolute bottom-3 left-3 bg-burgundy/90 backdrop-blur text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+            <Star size={10} fill="currentColor" /> {wine.communityScore.toFixed ? wine.communityScore.toFixed(1) : wine.communityScore}
+          </span>
+        )}
+        {percentile && (
+          <span className="absolute bottom-3 right-3 bg-amber-500/90 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded-full">
+            Top {percentile}%
           </span>
         )}
       </div>
@@ -308,6 +369,8 @@ const WineCard = memo(function WineCard({ wine }) {
 });
 
 const WineListItem = memo(function WineListItem({ wine }) {
+  const percentile = wine.qualityPercentile ? 100 - wine.qualityPercentile : null;
+
   return (
     <Link
       to={`/wine/${wine.id}`}
@@ -323,6 +386,16 @@ const WineListItem = memo(function WineListItem({ wine }) {
         </p>
       </div>
       <div className="flex items-center gap-3 shrink-0">
+        {wine.communityScore && (
+          <span className="text-xs font-bold text-burgundy flex items-center gap-0.5">
+            <Star size={10} fill="currentColor" /> {wine.communityScore.toFixed ? wine.communityScore.toFixed(1) : wine.communityScore}
+          </span>
+        )}
+        {percentile && (
+          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+            Top {percentile}%
+          </span>
+        )}
         {wine.rating && <StarRating rating={wine.rating} readonly size={14} />}
         <span className="text-sm text-stone-500 font-medium">{wine.bottles} btl</span>
       </div>

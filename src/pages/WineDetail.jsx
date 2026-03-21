@@ -3,8 +3,50 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit3, Trash2, Plus, Minus, Wine, ExternalLink,
   UtensilsCrossed, Calendar, MapPin, Grape, Tag, Percent,
-  Sparkles, Search, ShoppingCart, Clock, Globe, Loader2, GlassWater, MapPinned,
+  Sparkles, Search, ShoppingCart, Clock, Globe, Loader2, GlassWater, MapPinned, ChevronDown,
 } from 'lucide-react';
+
+function getDecantingRecommendation(wine) {
+  const age = wine.vintage ? new Date().getFullYear() - wine.vintage : null;
+  const grapes = (wine.grapeVarieties || []).map(g => g.toLowerCase());
+  const type = (wine.type || '').toLowerCase();
+  const classification = (wine.classification || '').toLowerCase();
+
+  // Wines that almost always benefit from decanting
+  const boldGrapes = ['cabernet sauvignon', 'syrah', 'shiraz', 'nebbiolo', 'malbec', 'tempranillo', 'mourvèdre', 'monastrell', 'tannat', 'petite sirah', 'aglianico', 'sangiovese', 'primitivo'];
+  const hasBoldGrape = grapes.some(g => boldGrapes.some(bg => g.includes(bg)));
+  const isClassified = classification.includes('grand cru') || classification.includes('reserva') || classification.includes('riserva') || classification.includes('premier cru') || classification.includes('gran reserva');
+
+  if (type === 'sparkling' || type === 'dessert' || type === 'fortified') {
+    return { shouldDecant: false, message: `${type.charAt(0).toUpperCase() + type.slice(1)} wines do not need decanting.` };
+  }
+
+  if (type === 'white' || type === 'rosé') {
+    if (age && age > 8) {
+      return { shouldDecant: true, duration: '15-20 min', message: `Aged ${type} wines can benefit from brief aeration to open up. Pour into decanter 15-20 minutes before serving.` };
+    }
+    return { shouldDecant: false, message: `Most ${type} wines don't need decanting. Serve chilled.` };
+  }
+
+  // Red wines
+  if (age && age < 3 && hasBoldGrape) {
+    return { shouldDecant: true, duration: '1-2 hours', message: `Young, bold red — decant for 1-2 hours to soften tannins and open up aromas.` };
+  }
+  if (age && age < 5 && (hasBoldGrape || isClassified)) {
+    return { shouldDecant: true, duration: '30-60 min', message: `This wine will benefit from 30-60 minutes of decanting to let the flavors develop fully.` };
+  }
+  if (age && age >= 10) {
+    return { shouldDecant: true, duration: '15-30 min', message: `Older wine — decant gently 15-30 minutes before serving to separate any sediment. Pour slowly and stop when sediment appears.` };
+  }
+  if (hasBoldGrape || isClassified) {
+    return { shouldDecant: true, duration: '30-60 min', message: `This wine style typically benefits from 30-60 minutes of decanting to fully express its character.` };
+  }
+  if (type === 'red') {
+    return { shouldDecant: false, message: `Light to medium-bodied red — decanting is optional. A few minutes in the glass should suffice.`, optional: true };
+  }
+
+  return { shouldDecant: false, message: `Decanting is not typically necessary for this wine.` };
+}
 import { useWines } from '../hooks/useWines';
 import { WINE_TYPES, FOOD_PAIRING_SUGGESTIONS, buildLCBOSearchUrl, getSimilarWineSearchTerms } from '../data/wineData';
 import { lookupWineData } from '../data/wineLookup';
@@ -23,6 +65,7 @@ export default function WineDetail() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showDecanting, setShowDecanting] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: null, notes: '', occasion: '' });
   const [showDrankConfirm, setShowDrankConfirm] = useState(false);
@@ -154,6 +197,32 @@ export default function WineDetail() {
               )}
             </div>
           </div>
+
+          {/* Decanting Recommendation - clickable toggle */}
+          {(() => {
+            const decanting = getDecantingRecommendation(wine);
+            return (
+              <button
+                onClick={() => setShowDecanting(!showDecanting)}
+                className="w-full px-5 py-3 border-t border-stone-100 flex items-center justify-between hover:bg-stone-50 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Wine size={16} className={decanting.shouldDecant ? 'text-burgundy' : 'text-stone-400'} />
+                  <span className="text-sm font-medium text-stone-700">
+                    {decanting.shouldDecant
+                      ? `Decant ${decanting.duration}`
+                      : decanting.optional ? 'Decanting optional' : 'No decanting needed'}
+                  </span>
+                </div>
+                <ChevronDown size={16} className={`text-stone-400 transition-transform ${showDecanting ? 'rotate-180' : ''}`} />
+              </button>
+            );
+          })()}
+          {showDecanting && (
+            <div className="px-5 pb-4 text-sm text-stone-600 bg-stone-50 border-t border-stone-100">
+              <p className="pt-3">{getDecantingRecommendation(wine).message}</p>
+            </div>
+          )}
 
           <div className="p-5">
             <h2 className="text-2xl font-bold text-stone-800">{wine.name}</h2>
