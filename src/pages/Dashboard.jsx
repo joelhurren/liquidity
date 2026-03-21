@@ -18,11 +18,11 @@ export default function Dashboard() {
 
   const currentYear = new Date().getFullYear();
 
-  // Wines whose drinking window ends this year (drinkTo === currentYear) and still have bottles
+  // Wines whose drinking window ends this year or has already passed — drink soon!
   const drinkThisYear = useMemo(() => {
     return wines.filter(
-      (w) => w.drinkTo && w.drinkTo === currentYear && (w.bottles || 0) > 0
-    );
+      (w) => w.drinkTo && w.drinkTo <= currentYear && (w.bottles || 0) > 0
+    ).sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0)); // most urgent first
   }, [wines, currentYear]);
 
   const filteredWines = useMemo(() => {
@@ -157,7 +157,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <Clock size={18} className="text-amber-600" />
               <h2 className="font-semibold text-amber-800">
-                Wines to Drink in {currentYear}
+                Drink Soon
               </h2>
               <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">
                 {drinkThisYear.length} wine{drinkThisYear.length !== 1 ? 's' : ''}
@@ -174,7 +174,10 @@ export default function Dashboard() {
                   <div className="min-w-0">
                     <div className="font-medium text-stone-800 text-sm truncate">{wine.name}</div>
                     <div className="text-xs text-amber-600">
-                      Drink by end of {currentYear} · {wine.bottles} btl{wine.bottles !== 1 ? 's' : ''}
+                      {wine.drinkTo < currentYear
+                        ? `Past peak (${wine.drinkTo})`
+                        : `Drink by end of ${currentYear}`}
+                      {' · '}{wine.bottles} btl{wine.bottles !== 1 ? 's' : ''}
                     </div>
                   </div>
                 </Link>
