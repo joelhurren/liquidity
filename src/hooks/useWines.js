@@ -105,10 +105,10 @@ export function useWines() {
     }
 
     try {
-      // Exclude image_data from list query — base64 images are huge and only needed on detail page
+      // After migration, image_data contains small CDN URLs instead of base64 blobs
       const { data, error } = await supabase
         .from('wines')
-        .select('id,created_at,updated_at,name,producer,vintage,region,country,appellation,grape_varieties,type,color,bottles,purchase_price,purchase_date,purchase_location,drink_from,drink_to,rating,reviews,tasting_notes,food_pairings,alcohol_percent,classification,storage_location,critic_scores,community_score,community_ratings,quality_percentile,vivino_url')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

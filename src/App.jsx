@@ -4,6 +4,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import Dashboard from './pages/Dashboard';
 import AddToHomeScreen from './components/AddToHomeScreen';
+import { migrateImagesToStorage } from './lib/imageStorage';
+
+// Expose migration function for one-time use from browser console
+window.migrateImages = migrateImagesToStorage;
 
 // Lazy-load non-dashboard routes to reduce initial bundle
 const AddWine = lazy(() => import('./pages/AddWine'));
