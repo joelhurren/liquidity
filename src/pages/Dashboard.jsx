@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Wine, Search, Filter, ArrowUpDown, Grid3X3, List, Sparkles, LogOut, Clock, Star } from 'lucide-react';
+import { Plus, Wine, Search, Filter, ArrowUpDown, Grid3X3, List, LogOut, Clock, Star } from 'lucide-react';
 import { useWines } from '../hooks/useWines';
 import { useAuth } from '../contexts/AuthContext';
 import { WINE_TYPES } from '../data/wineData';
@@ -118,12 +118,6 @@ export default function Dashboard() {
               className="flex-1 sm:flex-none bg-white text-burgundy px-4 sm:px-5 py-2.5 rounded-xl font-semibold hover:bg-white/90 transition-colors flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base"
             >
               <Plus size={18} /> Add Wine
-            </Link>
-            <Link
-              to="/suggest"
-              className="flex-1 sm:flex-none bg-white/15 backdrop-blur text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-white/25 transition-colors flex items-center justify-center gap-2 border border-white/20 text-sm sm:text-base"
-            >
-              <Sparkles size={18} /> Tonight's Pick
             </Link>
             {drinkSoonWines.length > 0 && (
               <button

@@ -13,7 +13,7 @@ window.migrateImages = migrateImagesToStorage;
 const AddWine = lazy(() => import('./pages/AddWine'));
 const WineDetail = lazy(() => import('./pages/WineDetail'));
 const EditWine = lazy(() => import('./pages/EditWine'));
-const SuggestWine = lazy(() => import('./pages/SuggestWine'));
+
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -55,7 +55,7 @@ export default function App() {
               <Route path="/add" element={<AddWine />} />
               <Route path="/wine/:id" element={<WineDetail />} />
               <Route path="/edit/:id" element={<EditWine />} />
-              <Route path="/suggest" element={<SuggestWine />} />
+
             </Routes>
           </Suspense>
           <AddToHomeScreen />
