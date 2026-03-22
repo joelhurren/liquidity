@@ -835,7 +835,7 @@ function WineScoresCard({ wine, onFetchScores, lookupLoading }) {
           )}
           {percentile && (
             <a
-              href={`https://www.wine-searcher.com/find/${encodeURIComponent([wine.name, wine.producer, wine.vintage].filter(Boolean).join(' '))}`}
+              href={vivinoUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="ml-auto text-right hover:opacity-80 transition-opacity cursor-pointer"
