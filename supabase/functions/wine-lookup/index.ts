@@ -2,27 +2,6 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
-// Vivino rating-to-percentile mapping (calibrated against real Vivino global rank data)
-// e.g. 4.2 rating wine = rank ~24k/1.6M = top ~2%
-function vivinoPercentile(rating: number): number {
-  if (rating >= 4.5) return 99;
-  if (rating >= 4.4) return 99;
-  if (rating >= 4.3) return 98;
-  if (rating >= 4.2) return 98;
-  if (rating >= 4.1) return 96;
-  if (rating >= 4.0) return 93;
-  if (rating >= 3.9) return 89;
-  if (rating >= 3.8) return 84;
-  if (rating >= 3.7) return 78;
-  if (rating >= 3.6) return 70;
-  if (rating >= 3.5) return 61;
-  if (rating >= 3.4) return 52;
-  if (rating >= 3.3) return 43;
-  if (rating >= 3.2) return 34;
-  if (rating >= 3.0) return 22;
-  return 10;
-}
-
 async function searchVivino(wineName: string, producer?: string | null, vintage?: number | null, grapeVariety?: string | null): Promise<{ communityScore: number; ratings: number; qualityPercentile: number; vivinoUrl: string } | null> {
   const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -107,14 +86,22 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
     const wineNameLower = wineName.toLowerCase().trim();
     const grapeLower = (grapeVariety || "").toLowerCase().trim();
 
-    // Build separate word lists for targeted matching
-    const producerWords = producerLower.split(/\s+/).filter(w => w.length > 1);
-    const wineNameWords = wineNameLower.split(/\s+/).filter(w => w.length > 1);
-    const grapeWords = grapeLower.split(/\s+/).filter(w => w.length > 1);
+    // Common wine words to ignore in matching (too generic to be meaningful)
+    // Includes articles, prepositions, and common wine type/color terms
+    const stopWords = new Set([
+      "de", "di", "du", "la", "le", "les", "del", "dei", "delle", "della", "des", "et", "the", "and", "den", "van", "von",
+      "rouge", "blanc", "rosé", "rose", "red", "white", "brut", "nature", "sec", "doux",
+    ]);
+
+    // Build separate word lists for targeted matching (excluding stop words)
+    const producerWords = producerLower.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
+    const wineNameWords = wineNameLower.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
+    const grapeWords = grapeLower.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
 
     let best = wineBlocks[0];
     let bestScore = -999;
-    for (const block of wineBlocks) {
+    for (let idx = 0; idx < wineBlocks.length; idx++) {
+      const block = wineBlocks[idx];
       const blockWineryLower = block.wineryName.toLowerCase();
       const blockWineNameLower = block.wineName.toLowerCase();
       const blockSeoLower = block.seoName.toLowerCase().replace(/-/g, ' ');
@@ -126,13 +113,17 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
       // Producer/winery match (heavily weighted — wrong producer = wrong wine)
       if (producerWords.length > 0) {
         const producerFound = producerWords.filter(w => blockWineryLower.includes(w) || blockSeoLower.includes(w)).length;
-        const producerMissing = producerWords.length - producerFound;
-        score += producerFound * 5;  // Strong reward for producer match
-        score -= producerMissing * 8; // Heavy penalty for wrong producer
-        // Penalize extra words in winery name (e.g. "Valle Buena Vista" vs "Buena Vista")
-        const wineryWords = blockWineryLower.split(/\s+/).filter(w => w.length > 1);
-        const extraInWinery = wineryWords.filter(w => !producerWords.some(q => q.includes(w) || w.includes(q))).length;
-        score -= extraInWinery * 3;
+        if (producerFound > 0) {
+          score += producerFound * 5;  // Strong reward for producer match
+          // Penalize extra words in winery name (e.g. "Valle Buena Vista" vs "Buena Vista")
+          const wineryWords = blockWineryLower.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
+          const extraInWinery = wineryWords.filter(w => !producerWords.some(q => q.includes(w) || w.includes(q))).length;
+          score -= extraInWinery * 3;
+        } else {
+          // No producer words match at all — flat penalty (capped, not per-word)
+          // This handles cases like "Famille Eugène Borie" vs "Château Ducru-Beaucaillou"
+          score -= 12;
+        }
       }
 
       // Wine name match (important — distinguishes different wines from same producer)
@@ -140,7 +131,7 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
         const nameFound = wineNameWords.filter(w => blockFullText.includes(w)).length;
         const nameMissing = wineNameWords.length - nameFound;
         score += nameFound * 3;
-        score -= nameMissing * 2;
+        score -= nameMissing * 3;
       }
 
       // Grape variety match (helps distinguish Cab Sauv from Chardonnay)
@@ -149,16 +140,19 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
         score += grapeFound * 2;
       }
 
-      // Penalize extra words in wine name not in our query (prevents overly broad matches)
+      // Heavily penalize extra words in wine name not in our query
+      // This prevents "Sancerre Jadis" beating "Sancerre Les Baronnes" when query is just "Sancerre"
+      // and "Châteauneuf-du-Pape XXL" beating "Châteauneuf-du-Pape (Tradition)"
       const allQueryWords = [...producerWords, ...wineNameWords, ...grapeWords];
-      const blockWineWords = blockWineNameLower.split(/\s+/).filter(w => w.length > 1);
+      const blockWineWords = blockWineNameLower.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
       const extraInWine = blockWineWords.filter(w => !allQueryWords.some(q => q.includes(w) || w.includes(q))).length;
-      score -= extraInWine;
+      score -= extraInWine * 3;
 
-      // Prefer results with more ratings (more popular = more likely the right wine)
-      if (block.count > 1000) score += 1;
+      // Search position bonus — Vivino's search ranking is a strong signal
+      // First result gets +3, second +2, third +1
+      if (idx < 3) score += 3 - idx;
 
-      console.log(`Vivino scoring: "${block.wineryName} ${block.wineName}" score=${score}`);
+      console.log(`Vivino scoring: "${block.wineryName} ${block.wineName}" score=${score} (pos:${idx})`);
 
       if (score > bestScore || (score === bestScore && block.count > best.count)) {
         best = block;
@@ -168,8 +162,14 @@ async function searchVivino(wineName: string, producer?: string | null, vintage?
     console.log(`Vivino: best match score=${bestScore} for "${best.wineryName} ${best.wineName}" (ID:${best.wineId})`);
     console.log(`Vivino: ${best.rating}/5.0 (${best.count} ratings)`);
 
-    // Step 3: Fetch the wine detail page to get the real global rank for percentile
-    let qualityPercentile = vivinoPercentile(best.rating); // fallback
+    // Reject match if score is too low — prevents forcing wrong wines
+    if (bestScore < -5) {
+      console.log(`Vivino: rejecting match — score ${bestScore} too low (no confident match)`);
+      return null;
+    }
+
+    // Step 4: Fetch the wine detail page to get the real global rank for percentile
+    let qualityPercentile: number | null = null; // only set from real Vivino data
     try {
       const detailUrl = `https://www.vivino.com/w/${best.wineId}`;
       const detailRes = await fetch(detailUrl, {

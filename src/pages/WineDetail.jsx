@@ -146,13 +146,13 @@ export default function WineDetail() {
       {/* Header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="p-2 hover:bg-stone-100 rounded-lg">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button onClick={() => navigate('/')} className="p-2 hover:bg-stone-100 rounded-lg shrink-0">
               <ArrowLeft size={20} />
             </button>
             <h1 className="text-lg font-semibold truncate">{wine.name}</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <Link
               to="/add"
               className="p-2 hover:bg-green-50 rounded-lg text-stone-500 hover:text-green-600"
