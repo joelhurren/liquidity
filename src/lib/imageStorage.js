@@ -39,6 +39,11 @@ export async function uploadWineImage(base64DataUrl, wineId) {
   if (!supabase || !base64DataUrl?.startsWith('data:')) return null;
 
   try {
+    // Get current user for path isolation — prevents other users from
+    // overwriting/deleting this image via the storage API.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
     // Compress before uploading
     const compressed = await compressImage(base64DataUrl);
     const match = compressed.match(/^data:(image\/\w+);base64,(.+)$/);
@@ -54,7 +59,7 @@ export async function uploadWineImage(base64DataUrl, wineId) {
       bytes[i] = binary.charCodeAt(i);
     }
 
-    const path = `${wineId}.jpeg`;
+    const path = `${user.id}/${wineId}.jpeg`;
 
     const { error } = await supabase.storage
       .from(BUCKET)
@@ -92,9 +97,15 @@ export function isBase64Image(str) {
 export async function deleteWineImage(wineId) {
   if (!supabase) return;
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const paths = [];
     for (const ext of ['jpeg', 'jpg', 'png', 'webp']) {
-      await supabase.storage.from(BUCKET).remove([`${wineId}.${ext}`]);
+      paths.push(`${user.id}/${wineId}.${ext}`);
+      // Legacy flat paths — safe to attempt, storage RLS will block if not owner
+      paths.push(`${wineId}.${ext}`);
     }
+    await supabase.storage.from(BUCKET).remove(paths);
   } catch {
     // ignore
   }
@@ -168,4 +179,79 @@ export async function migrateImagesToStorage() {
 
   console.log(`\nMigration complete: ${migrated} migrated, ${skipped} already done, ${errors} errors`);
   return { migrated, errors, skipped };
+}
+
+/**
+ * Migrate storage image paths from flat ({wineId}.jpeg) to user-scoped
+ * ({userId}/{wineId}.jpeg) for security. Runs per-user — each user must run it
+ * against their own wines (storage.move requires being the owner).
+ * Call once from the browser console: await window.migrateImagePaths()
+ */
+export async function migrateImagePathsToUserFolders() {
+  if (!supabase) return { moved: 0, errors: 0, skipped: 0 };
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    console.error('Not signed in');
+    return { moved: 0, errors: 0, skipped: 0 };
+  }
+
+  // Fetch this user's wines with image URLs
+  const { data: wines, error } = await supabase
+    .from('wines')
+    .select('id, image_data')
+    .eq('user_id', user.id)
+    .not('image_data', 'is', null);
+
+  if (error) {
+    console.error('Query failed:', error);
+    return { moved: 0, errors: 1, skipped: 0 };
+  }
+
+  let moved = 0, errors = 0, skipped = 0;
+
+  for (const wine of wines) {
+    const url = wine.image_data;
+    // Only process storage URLs with the old flat path (no slash before filename)
+    // URL shape: .../wine-images/{wineId}.jpeg  (OLD)
+    //           .../wine-images/{userId}/{wineId}.jpeg  (NEW)
+    const oldPathMatch = url?.match(/\/wine-images\/([^/]+\.(?:jpeg|jpg|png|webp))(\?|$)/);
+    if (!oldPathMatch) {
+      skipped++;
+      continue;
+    }
+    const oldPath = oldPathMatch[1];
+    const newPath = `${user.id}/${oldPath}`;
+
+    // Move the file in storage
+    const { error: moveErr } = await supabase.storage
+      .from(BUCKET)
+      .move(oldPath, newPath);
+
+    if (moveErr) {
+      console.error(`  ✗ Move failed for ${oldPath}:`, moveErr.message);
+      errors++;
+      continue;
+    }
+
+    // Update DB with new public URL
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(newPath);
+    const newUrl = urlData?.publicUrl;
+
+    const { error: updateErr } = await supabase
+      .from('wines')
+      .update({ image_data: newUrl })
+      .eq('id', wine.id);
+
+    if (updateErr) {
+      console.error(`  ✗ DB update failed for ${wine.id}:`, updateErr);
+      errors++;
+    } else {
+      moved++;
+      console.log(`  ✓ ${oldPath} → ${newPath}`);
+    }
+  }
+
+  console.log(`\nPath migration complete: ${moved} moved, ${skipped} already done, ${errors} errors`);
+  return { moved, errors, skipped };
 }
